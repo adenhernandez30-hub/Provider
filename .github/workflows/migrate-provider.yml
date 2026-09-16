@@ -27,7 +27,7 @@ jobs:
           git checkout --detach 2f25fe0cabac7f26bb560dfa30c09d5da9ee8de5
           cd - >/dev/null
           find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-          cp -a "$tmp/vider/." .
+          rsync -a --exclude='.git' "$tmp/vider/" ./
           rm -rf "$tmp"
 
       - name: Commit migrated snapshot
