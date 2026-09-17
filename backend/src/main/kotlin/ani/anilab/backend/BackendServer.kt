@@ -6,7 +6,6 @@ import com.kakaanime.provider.ProviderEngine
 import com.kakaanime.provider.ProviderEpisode
 import com.kakaanime.provider.ProviderRegistry
 import com.kakaanime.provider.ProviderStream
-import com.kakaanime.provider.RaceStreamEngine
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
@@ -17,7 +16,6 @@ import java.util.concurrent.Executors
 class BackendServer(
     private val registry: ProviderRegistry,
     private val providerEngine: ProviderEngine = ProviderEngine(registry),
-    private val raceEngine: RaceStreamEngine = RaceStreamEngine(registry),
     private val port: Int = 8080,
 ) {
     private var server: HttpServer? = null
@@ -49,7 +47,7 @@ class BackendServer(
 
             when {
                 path == "/" -> respond(exchange, 200, "{\"service\":\"AniLab Provider Backend\",\"status\":\"ok\"}")
-                path == "/health" -> respond(exchange, 200, "{\"status\":\"ok\",\"providers\":${registry.all().size}}")
+                path == "/health" -> respond(exchange, 200, healthJson())
                 path == "/providers" -> respond(exchange, 200, providersJson(registry.all()))
                 segments.size == 2 && segments[0] == "search" ->
                     respond(exchange, 200, searchJson(providerEngine.search(segments[1])))
@@ -58,7 +56,7 @@ class BackendServer(
                 segments.size == 3 && segments[0] == "anime" && segments[2] == "episodes" ->
                     respond(exchange, 200, episodesJson(providerEngine.getEpisodes(segments[1])))
                 segments.size == 5 && segments[0] == "anime" && segments[2] == "episode" && segments[4] == "streams" ->
-                    respond(exchange, 200, streamsJson(raceEngine.getFirstStream(segments[1], segments[3].toInt())))
+                    respond(exchange, 200, streamsJson(providerEngine.getFirstStream(segments[1], segments[3].toInt())))
                 else -> respond(exchange, 404, "{\"error\":\"not_found\"}")
             }
         } catch (e: NumberFormatException) {
@@ -69,6 +67,18 @@ class BackendServer(
             exchange.close()
         }
     }
+
+    private fun healthJson(): String {
+        val snapshots = providerEngine.healthMonitor().all(registry.all().map(AnimeProvider::id))
+        val failing = snapshots.count { it.status == "FAILING" }
+        val degraded = snapshots.count { it.status == "DEGRADED" }
+        return "{\"status\":\"ok\",\"providers\":${snapshots.size},\"failing\":$failing,\"degraded\":$degraded,\"providerHealth\":${healthArray(snapshots)}}"
+    }
+
+    private fun healthArray(snapshots: List<com.kakaanime.provider.ProviderHealthSnapshot>): String =
+        snapshots.joinToString(prefix = "[", postfix = "]") {
+            "{\"providerId\":${json(it.providerId)},\"status\":${json(it.status)},\"successfulRequests\":${it.successfulRequests},\"failedRequests\":${it.failedRequests},\"successRate\":${it.successRate},\"averageLatencyMs\":${it.averageLatencyMs},\"lastCheckedAt\":${it.lastCheckedAt},\"lastSuccessAt\":${it.lastSuccessAt},\"lastFailureAt\":${it.lastFailureAt},\"consecutiveFailures\":${it.consecutiveFailures},\"lastError\":${json(it.lastError)}}"
+        }
 
     private fun respond(exchange: HttpExchange, status: Int, body: String) {
         val bytes = body.toByteArray(StandardCharsets.UTF_8)
