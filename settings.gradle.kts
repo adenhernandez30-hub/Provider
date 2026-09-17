@@ -17,4 +17,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "KakaAnimeProvider"
+include(":provider-core")
 include(":provider")
