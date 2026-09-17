@@ -15,7 +15,7 @@ import com.kakaanime.provider.StreamType
  * guessed or coupled to the provider core.
  */
 class WibukuProvider(
-    private val api: WibukuApiClient,
+    private val api: WibukuApi,
     private val episodeIdResolver: (suspend (animeId: String, episodeNumber: Int) -> String?)? = null,
     private val streamLinkResolver: (suspend (source: WibukuStreamSource) -> String?)? = null
 ) : AnimeProvider {
