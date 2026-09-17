@@ -1,8 +1,5 @@
 package com.kakaanime.provider
 
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -17,7 +14,7 @@ import kotlinx.coroutines.launch
 class RaceStreamEngine(
     private val registry: ProviderRegistry
 ) {
-    private data class Result(val provider: AnimeProvider, val streams: List<ProviderStream>)
+    private data class Result(val streams: List<ProviderStream>)
 
     suspend fun getFirstStream(animeId: String, episodeNumber: Int): ProviderStream? = coroutineScope {
         val providers = registry.all()
@@ -31,9 +28,7 @@ class RaceStreamEngine(
                 }.getOrDefault(emptyList())
 
                 val usable = streams.filter { it.url.isNotBlank() && it.type != StreamType.UNKNOWN }
-                if (usable.isNotEmpty()) {
-                    results.send(Result(provider, usable))
-                }
+                if (usable.isNotEmpty()) results.send(Result(usable))
             }
         }
 
