@@ -1,10 +1,13 @@
 package com.kakaanime.provider
 
 class ProviderEngine(
-    private val registry: ProviderRegistry
+    private val registry: ProviderRegistry,
+    private val healthMonitor: ProviderHealthMonitor = ProviderHealthMonitor(),
 ) {
-    private val router = SmartProviderRouter(registry)
-    private val race = RaceStreamEngine(registry)
+    private val router = SmartProviderRouter(registry, healthMonitor)
+    private val race = RaceStreamEngine(registry, healthMonitor)
+
+    fun healthMonitor(): ProviderHealthMonitor = healthMonitor
 
     suspend fun search(query: String): List<ProviderAnime> = router.search(query)
 
