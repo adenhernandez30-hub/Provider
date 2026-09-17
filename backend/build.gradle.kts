@@ -6,8 +6,9 @@ plugins {
 group = "com.kakaanime"
 version = "0.1.0"
 
+
 dependencies {
-    implementation(project(":provider"))
+    implementation(project(":provider-core"))
 }
 
 kotlin {
