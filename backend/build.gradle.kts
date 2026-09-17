@@ -1,5 +1,5 @@
 plugins {
-    kotlin("jvm") version "2.1.20"
+    id("org.jetbrains.kotlin.jvm")
     application
 }
 
