@@ -57,7 +57,7 @@ class BackendServer(
                     respond(exchange, 200, animeJson(providerEngine.getAnime(segments[1])))
                 segments.size == 3 && segments[0] == "anime" && segments[2] == "episodes" ->
                     respond(exchange, 200, episodesJson(providerEngine.getEpisodes(segments[1])))
-                segments.size == 4 && segments[0] == "anime" && segments[2] == "episode" && segments[3] == "streams" ->
+                segments.size == 5 && segments[0] == "anime" && segments[2] == "episode" && segments[4] == "streams" ->
                     respond(exchange, 200, streamsJson(raceEngine.getFirstStream(segments[1], segments[3].toInt())))
                 else -> respond(exchange, 404, "{\"error\":\"not_found\"}")
             }
