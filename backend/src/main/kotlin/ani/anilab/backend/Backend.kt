@@ -1,9 +1,12 @@
 package ani.anilab.backend
 
 /**
- * Entry point placeholder for the standalone AniLab Provider backend.
+ * Entry point for the standalone AniLab Provider backend.
  *
- * Runtime/server wiring is intentionally added after the existing provider
- * contracts and adapters are validated from this isolated branch.
+ * HTTP/server wiring is intentionally kept separate from the provider engine.
  */
 object Backend
+
+fun main() {
+    println("AniLab Provider Backend foundation")
+}
