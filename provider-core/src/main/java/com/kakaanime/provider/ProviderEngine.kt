@@ -4,6 +4,7 @@ class ProviderEngine(
     private val registry: ProviderRegistry
 ) {
     private val router = SmartProviderRouter(registry)
+    private val race = RaceStreamEngine(registry)
 
     suspend fun search(query: String): List<ProviderAnime> = router.search(query)
 
@@ -21,6 +22,13 @@ class ProviderEngine(
             streams = StreamNormalizer.normalize(deduplicated)
         )
     }
+
+    /**
+     * Returns the first usable stream produced by any registered provider.
+     * This is intended for low-latency playback through the backend.
+     */
+    suspend fun getFirstStream(animeId: String, episodeNumber: Int): ProviderStream? =
+        race.getFirstStream(animeId, episodeNumber)
 
     suspend fun getBestStream(
         animeId: String,
