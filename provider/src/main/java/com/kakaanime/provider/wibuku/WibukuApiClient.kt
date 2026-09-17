@@ -21,8 +21,8 @@ class WibukuApiClient(
     private val deviceHash: String? = null,
     private val extraHeaders: Map<String, String> = emptyMap(),
     private val client: OkHttpClient = defaultClient()
-) {
-    suspend fun getEpisodeMeta(id: String, mode: Int = 0): EpisodeMetaResponse? = withContext(Dispatchers.IO) {
+) : WibukuApi {
+    override suspend fun getEpisodeMeta(id: String, mode: Int): EpisodeMetaResponse? = withContext(Dispatchers.IO) {
         val cleanId = id.trim()
         if (cleanId.isBlank()) return@withContext null
 
