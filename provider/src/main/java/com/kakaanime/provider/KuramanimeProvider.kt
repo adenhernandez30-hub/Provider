@@ -38,9 +38,6 @@ class KuramanimeProvider(browserResolver: BrowserStreamResolver? = null) : Anime
             if (href.isBlank() || title.isBlank()) null
             else ProviderAnime("$id:$href", title, id, posterUrl = a.selectFirst("img")?.attr("src"))
         }.distinctBy { it.id }.take(30)
-            val href = a.absUrl("href"); val title = a.selectFirst("div > h5")?.text()?.trim().orEmpty()
-            if (href.isBlank() || title.isBlank()) null else ProviderAnime("$id:$href", title, id, posterUrl = a.selectFirst("div.set-bg")?.attr("data-setbg"))
-        }.distinctBy { it.id }
     }
 
     override suspend fun getAnime(animeId: String): ProviderAnime? {
