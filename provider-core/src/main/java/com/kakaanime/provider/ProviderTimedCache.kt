@@ -73,8 +73,8 @@ class ProviderTimedCache<K, V>(
         scope.launch {
             try {
                 loadAndStore(key, freshTtlMs, staleTtlMs, loader)
-            } catch (_: CancellationException) {
-                throw
+            } catch (error: CancellationException) {
+                throw error
             } catch (_: Throwable) {
                 // Keep the stale value when refresh fails.
             }
