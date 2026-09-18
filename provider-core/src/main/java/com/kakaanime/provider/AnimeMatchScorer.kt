@@ -43,7 +43,7 @@ object AnimeMatchScorer {
             .replace("&", " and ")
             .replace(Regex("[^a-z0-9]+"), " ")
             .trim()
-            .replace(Regex("\s+"), " ")
+            .replace(Regex("\\s+"), " ")
 
     private fun titleSimilarity(expected: String, actual: String): Double {
         if (expected == actual) return 1.0
