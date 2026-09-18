@@ -2,6 +2,8 @@ package com.kakaanime.provider
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -45,7 +47,7 @@ class ProviderMappingCache(
 
         val deferred = mutex.withLock {
             getCachedUnsafe(anilistId)?.let { return@withLock null }
-            inFlight[anilistId] ?: scope.async {
+            inFlight[anilistId] ?: scope.async(SupervisorJob(scope.coroutineContext[Job])) {
                 loader()
             }.also { created ->
                 inFlight[anilistId] = created
