@@ -24,7 +24,7 @@ class SamehadakuProvider(
     override val priority = 20
 
     private val client = OkHttpClient.Builder().connectTimeout(10, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).callTimeout(30, TimeUnit.SECONDS).followRedirects(true).build()
-    private val mainUrl = "https://v2.samehadaku.how"
+    private val mainUrl = "https://samehadaku.li"
     private val primary = "https://www.keyrafara.com/streaming/samehadaku"
     private val wajik = "https://wajik-anime-api.vercel.app/samehadaku"
     private val resolver = StreamResolver(ExtractorRegistry(browserResolver = browserResolver), browserResolver = browserResolver)
