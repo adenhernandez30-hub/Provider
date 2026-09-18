@@ -53,7 +53,7 @@ class SamehadakuProvider(
             val embedded = document.select("[data-content]").flatMap { holder ->
                 val html = holder.attr("data-content")
                     .replace("&amp;", "&")
-                    .replace("&quot;", """)
+                    .replace("&quot;", "\"")
                     .replace("&#039;", "'")
                     .replace("&lt;", "<")
                     .replace("&gt;", ">")
