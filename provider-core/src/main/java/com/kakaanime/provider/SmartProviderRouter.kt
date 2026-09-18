@@ -1,25 +1,32 @@
 package com.kakaanime.provider
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+
 /**
- * Provider router with lightweight request telemetry.
- * Provider calls remain sequential so routing behavior stays predictable
- * while the backend gains visibility into provider latency and failures.
+ * Provider router with bounded fan-out for operations where results from
+ * multiple providers are useful. Single-result operations retain sequential
+ * fallback semantics.
  */
 class SmartProviderRouter(
     private val registry: ProviderRegistry,
     private val healthMonitor: ProviderHealthMonitor = ProviderHealthMonitor(),
+    private val maxParallelProviders: Int = DEFAULT_MAX_PARALLEL_PROVIDERS,
 ) {
+    init {
+        require(maxParallelProviders > 0) { "maxParallelProviders must be positive" }
+    }
+
     fun healthMonitor(): ProviderHealthMonitor = healthMonitor
 
     suspend fun search(query: String): List<ProviderAnime> {
         if (query.isBlank()) return emptyList()
-        val results = mutableListOf<ProviderAnime>()
-        for (provider in registry.all()) {
-            request(provider) { provider.search(query) }
-                .getOrDefault(emptyList())
-                .let(results::addAll)
-        }
-        return results.distinctBy { "${it.providerId}:${it.id}" }
+        return parallelRequests { provider -> provider.search(query) }
+            .flatMap { it.getOrDefault(emptyList()) }
+            .distinctBy { "${it.providerId}:${it.id}" }
     }
 
     suspend fun getAnime(animeId: String): ProviderAnime? {
@@ -39,14 +46,21 @@ class SmartProviderRouter(
         return emptyList()
     }
 
-    suspend fun getStreams(animeId: String, episodeNumber: Int): List<ProviderStream> {
-        val streams = mutableListOf<ProviderStream>()
-        for (provider in registry.all()) {
-            request(provider) { provider.getStreams(animeId, episodeNumber) }
-                .getOrDefault(emptyList())
-                .let(streams::addAll)
-        }
-        return streams
+    suspend fun getStreams(animeId: String, episodeNumber: Int): List<ProviderStream> =
+        parallelRequests { provider -> provider.getStreams(animeId, episodeNumber) }
+            .flatMap { it.getOrDefault(emptyList()) }
+
+    private suspend fun <T> parallelRequests(
+        block: suspend (AnimeProvider) -> T,
+    ): List<Result<T>> = coroutineScope {
+        val semaphore = Semaphore(maxParallelProviders)
+        registry.all().map { provider ->
+            async {
+                semaphore.withPermit {
+                    request(provider) { block(provider) }
+                }
+            }
+        }.awaitAll()
     }
 
     private suspend fun <T> request(
@@ -55,14 +69,14 @@ class SmartProviderRouter(
     ): Result<T> {
         val startedAt = System.nanoTime()
         return runCatching { block() }
-            .onSuccess {
-                healthMonitor.recordSuccess(provider.id, elapsedMs(startedAt))
-            }
-            .onFailure { error ->
-                healthMonitor.recordFailure(provider.id, elapsedMs(startedAt), error)
-            }
+            .onSuccess { healthMonitor.recordSuccess(provider.id, elapsedMs(startedAt)) }
+            .onFailure { error -> healthMonitor.recordFailure(provider.id, elapsedMs(startedAt), error) }
     }
 
     private fun elapsedMs(startedAt: Long): Long =
         ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+
+    companion object {
+        const val DEFAULT_MAX_PARALLEL_PROVIDERS: Int = 4
+    }
 }
