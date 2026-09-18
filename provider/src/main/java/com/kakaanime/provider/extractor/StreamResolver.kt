@@ -4,14 +4,22 @@ import com.kakaanime.provider.ProviderStream
 import com.kakaanime.provider.StreamType
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 /** Resolves provider/server URLs through the extractor chain. */
 class StreamResolver(
     private val registry: ExtractorRegistry,
     private val validator: StreamValidator = StreamValidator(),
-    private val browserResolver: BrowserStreamResolver? = null
+    private val browserResolver: BrowserStreamResolver? = null,
+    private val maxParallelValidation: Int = DEFAULT_MAX_PARALLEL_VALIDATION,
 ) {
+    init {
+        require(maxParallelValidation > 0) { "maxParallelValidation must be positive" }
+    }
+
     suspend fun resolve(
         urls: List<String>,
         referer: String? = null
@@ -22,7 +30,6 @@ class StreamResolver(
 
         if (inputUrls.isEmpty()) return@supervisorScope emptyList()
 
-        // Fast path: known media URLs bypass extractor work. Validation remains authoritative.
         val directCandidates = DirectStreamFastPath.candidates(inputUrls)
         if (directCandidates.isNotEmpty()) {
             val direct = validateDirectUrls(directCandidates)
@@ -56,23 +63,34 @@ class StreamResolver(
         resolveWithBrowser(browserInputs, referer)
     }
 
-    private suspend fun validateCandidates(candidates: List<ProviderStream>): List<ProviderStream> = supervisorScope {
-        candidates.map { candidate -> async { validator.validate(candidate) } }.awaitAll()
-            .filterNotNull().filter { it.type != StreamType.UNKNOWN }.distinctBy { it.url }
-    }
+    private suspend fun validateCandidates(candidates: List<ProviderStream>): List<ProviderStream> =
+        boundedValidate(candidates)
 
-    private suspend fun validateDirectUrls(urls: List<String>): List<ProviderStream> = supervisorScope {
-        urls.map { url ->
-            async {
-                validator.validate(ProviderStream(providerId = "", url = url, type = StreamType.UNKNOWN))
+    private suspend fun validateDirectUrls(urls: List<String>): List<ProviderStream> =
+        boundedValidate(
+            urls.map { url ->
+                ProviderStream(providerId = "", url = url, type = StreamType.UNKNOWN)
             }
-        }.awaitAll()
-            .filterNotNull().filter { it.type != StreamType.UNKNOWN }.distinctBy { it.url }
-    }
+        )
+
+    private suspend fun boundedValidate(candidates: List<ProviderStream>): List<ProviderStream> =
+        supervisorScope {
+            val semaphore = Semaphore(maxParallelValidation)
+            candidates.map { candidate ->
+                async {
+                    semaphore.withPermit {
+                        runCatching { validator.validate(candidate) }.getOrNull()
+                    }
+                }
+            }.awaitAll()
+                .filterNotNull()
+                .filter { it.type != StreamType.UNKNOWN }
+                .distinctBy { it.url }
+        }
 
     private suspend fun resolveWithBrowser(urls: List<String>, referer: String?): List<ProviderStream> {
         val resolver = browserResolver ?: return emptyList()
-        return supervisorScope {
+        return coroutineScope {
             urls.map { url ->
                 async { runCatching { resolver.resolve(url, referer) }.getOrDefault(emptyList()) }
             }.awaitAll().flatten()
@@ -80,5 +98,9 @@ class StreamResolver(
                 .filter { it.url.startsWith("http", ignoreCase = true) }
                 .distinctBy { it.url }
         }
+    }
+
+    companion object {
+        const val DEFAULT_MAX_PARALLEL_VALIDATION: Int = 4
     }
 }
