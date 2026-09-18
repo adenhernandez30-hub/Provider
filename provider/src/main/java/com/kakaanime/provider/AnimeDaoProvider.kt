@@ -24,9 +24,22 @@ class AnimeDaoProvider(browserResolver: BrowserStreamResolver? = null) : AnimePr
     override suspend fun getEpisodes(animeId: String) = catalog.getEpisodes(animeId)
     override suspend fun getStreams(animeId: String, episodeNumber: Int): List<ProviderStream> {
         val raw = animeId.removePrefix("$id:").trimEnd('/')
-        val episodeUrl = if (raw.contains("/episodes/", true)) raw.replace(Regex("1x\\d+"), "1x" + episodeNumber)
-            else baseUrl + "/episodes/" + raw.substringAfterLast("/anime/").substringBefore("?").trim('/') + "-1x" + episodeNumber + "/"
-        val doc = getDocument(episodeUrl) ?: return emptyList()
+
+        // Prefer the exact episode URL returned by the catalog. AnimeDao uses
+        // season x episode paths (for example 23x1174), so rebuilding the URL
+        // from the anime slug can silently select a non-existent episode page.
+        val episodeUrl = getEpisodes(animeId)
+            .firstOrNull { it.number == episodeNumber }
+            ?.id
+            ?.removePrefix("$id:")
+            ?.takeIf { it.startsWith("http", true) }
+            ?: if (raw.contains("/episodes/", true)) {
+                raw.replace(Regex("\\d+x\\d+"), "1x" + episodeNumber)
+            } else {
+                baseUrl + "/episodes/" + raw.substringAfterLast("/anime/").substringBefore("?").trim('/') + "-1x" + episodeNumber + "/"
+            }
+
+        val doc = getDocument(episodeUrl) ?: return resolver.resolve(listOf(episodeUrl), referer = baseUrl)
         val candidates = buildList {
             known(doc, "gstore", "source").forEach(::add)
             known(doc, "vid", "video").forEach(::add)
