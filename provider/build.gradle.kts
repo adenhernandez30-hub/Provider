@@ -13,6 +13,7 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jsoup:jsoup:1.18.3")
     implementation("org.json:json:20240303")
+    testImplementation(kotlin("test"))
 }
 
 tasks.withType<KotlinCompile>().configureEach {
@@ -21,4 +22,8 @@ tasks.withType<KotlinCompile>().configureEach {
 
 kotlin {
     jvmToolchain(17)
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
