@@ -57,13 +57,14 @@ class OtakudesuServerExtractor : StreamExtractor {
     private suspend fun resolveMirrorStream(pageUrl: String, html: String): List<PlaybackCandidate> {
         val origin = runCatching { URI(pageUrl).let { "${it.scheme}://${it.authority}" } }.getOrNull() ?: return emptyList()
         val ajaxReferer = "$origin/"
-        val script = Regex("<script[^>]*>(.*?)</script>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
-            .findAll(html).map { it.groupValues[1] }
-            .firstOrNull {
-                it.contains("window.__x__nonce", true) ||
-                    (it.contains("{action:", true) && it.contains("action:\"", true)) ||
-                    it.contains("mirrorstream", true)
-            }
+        // Prefer the actual mirrorstream bootstrap script. Otakudesu pages
+        // can contain other scripts with "{action:" before the player script.
+        val scripts = Regex("<script[^>]*>(.*?)</script>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+            .findAll(html)
+            .map { it.groupValues[1] }
+            .toList()
+        val script = scripts.firstOrNull { it.contains("window.__x__nonce", true) }
+            ?: scripts.firstOrNull { it.contains("mirrorstream", true) }
             ?: return emptyList()
 
         val nonceAction = NONCE_ACTION_REGEX.find(script)?.groupValues?.getOrNull(1)
@@ -92,7 +93,8 @@ class OtakudesuServerExtractor : StreamExtractor {
                 mapOf("id" to entry.id, "i" to entry.i, "q" to entry.q, "nonce" to nonce, "action" to action),
                 ajaxReferer,
             ) ?: continue
-            val decoded = extractAjaxData(response)?.let(::decodeBase64) ?: decodeBase64(response) ?: response
+            val payload = extractAjaxData(response) ?: response
+            val decoded = decodeBase64(payload) ?: payload
             extractIframeUrls(decoded, pageUrl).forEach { results.putIfAbsent(it, PlaybackCandidate(it, entry.q)) }
             extractInlineMedia(decoded, pageUrl).forEach { results.putIfAbsent(it, PlaybackCandidate(it, entry.q)) }
         }
