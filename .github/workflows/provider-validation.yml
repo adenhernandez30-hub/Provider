@@ -27,5 +27,8 @@ jobs:
       - name: Build provider
         run: ./gradlew :provider:build --stacktrace
 
+      - name: Test backend
+        run: ./gradlew :backend:test --stacktrace
+
       - name: Build backend
         run: ./gradlew :backend:build --stacktrace
