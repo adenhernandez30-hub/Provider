@@ -162,7 +162,29 @@ class NativeHtmlProvider(
     }
 
     private fun imageUrl(image: Element): String? = image.absUrl("src").ifBlank { image.absUrl("data-src") }.ifBlank { null }
-    private fun looksLikeAnimeUrl(url: String): Boolean = url.contains("/anime/", true) || url.contains("/series/", true) || url.contains("/title/", true) || url.contains("/anime-", true)
+    private fun looksLikeAnimeUrl(url: String): Boolean {
+        val normalized = url.trim()
+        if (!normalized.startsWith("http", true)) return false
+        val hostMatches = runCatching {
+            java.net.URI(normalized).host.equals(java.net.URI(baseUrl).host, ignoreCase = true)
+        }.getOrDefault(false)
+        if (!hostMatches) return false
+        val path = runCatching { java.net.URI(normalized).path.lowercase() }.getOrDefault("/")
+        if (path == "/" || path.isBlank()) return false
+        val blocked = listOf(
+            "/wp-admin", "/wp-login", "/feed", "/category/", "/categories/",
+            "/tag/", "/genre/", "/genres/", "/page/", "/author/", "/search/",
+            "/contact", "/privacy", "/disclaimer", "/login", "/register",
+            "/support", "/faq"
+        )
+        if (blocked.any(path::contains)) return false
+        return path.contains("/anime/") ||
+            path.contains("/series/") ||
+            path.contains("/title/") ||
+            path.contains("/episode") ||
+            path.contains("-anime") ||
+            path.split('/').lastOrNull()?.isNotBlank() == true
+    }
     private fun slug(value: String): String = value.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-')
     private fun encode(value: String): String = URLEncoder.encode(value, "UTF-8")
 }
