@@ -36,10 +36,7 @@ class ProviderCacheTest {
         cache.getOrLoad("anime-1") { calls++; first }
         now = 16 * 60 * 1000L
         assertEquals(first, cache.getOrLoad("anime-1") { calls++; delay(10); second })
-        repeat(20) {
-            if (cache.getOrLoad("anime-1") { calls++; second } == second) return@repeat
-            delay(10)
-        }
+        delay(100)
         assertEquals(2, calls)
         assertEquals(second, cache.getOrLoad("anime-1") { calls++; error("should be fresh") })
     }
