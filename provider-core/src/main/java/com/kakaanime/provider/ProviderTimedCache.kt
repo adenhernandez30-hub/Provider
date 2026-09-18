@@ -35,7 +35,6 @@ class ProviderTimedCache<K, V>(
         staleTtlMs: (V) -> Long,
         loader: suspend () -> V,
     ): V {
-        require(freshTtlMs != null && staleTtlMs != null)
         val now = nowMs()
         val existing = mutex.withLock { values[key] }
 
