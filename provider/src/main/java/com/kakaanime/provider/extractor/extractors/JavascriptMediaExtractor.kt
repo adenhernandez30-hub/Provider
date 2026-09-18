@@ -1,6 +1,6 @@
 package com.kakaanime.provider.extractor.extractors
 
-import android.util.Base64
+import java.util.Base64
 import com.kakaanime.provider.ProviderStream
 import com.kakaanime.provider.StreamType
 import com.kakaanime.provider.extractor.StreamExtractor
@@ -84,7 +84,7 @@ class JavascriptMediaExtractor : StreamExtractor {
     }
 
     private fun decodeBase64(value: String): String? = runCatching {
-        String(Base64.decode(value.replace("-", "+").replace("_", "/"), Base64.DEFAULT), Charsets.UTF_8)
+        String(Base64.getDecoder().decode(value.replace("-", "+").replace("_", "/")), Charsets.UTF_8)
     }.getOrNull()?.takeIf { it.isNotBlank() }
 
     private fun unescape(value: String): String = runCatching {
