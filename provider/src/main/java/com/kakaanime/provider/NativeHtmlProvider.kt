@@ -158,6 +158,8 @@ class NativeHtmlProvider(
     private fun episodeNumber(text: String, href: String): Int? {
         return Regex("(?:episode|eps|ep|e)[^0-9]*(\\d+)", RegexOption.IGNORE_CASE).find(text)?.groupValues?.getOrNull(1)?.toIntOrNull()
             ?: Regex("(?:episode|eps|ep)[^0-9]*(\\d+)", RegexOption.IGNORE_CASE).find(href)?.groupValues?.getOrNull(1)?.toIntOrNull()
+            ?: Regex("(?:^|[^0-9])\\d+\\s*[xX]\\s*(\\d+)(?:[^0-9]|$)").find(text)?.groupValues?.getOrNull(1)?.toIntOrNull()
+            ?: Regex("(?:^|[^0-9])\\d+\\s*[xX]\\s*(\\d+)(?:[^0-9]|$)").find(href)?.groupValues?.getOrNull(1)?.toIntOrNull()
             ?: Regex("(?:-|/)(\\d+)(?:/|$)").find(href)?.groupValues?.getOrNull(1)?.toIntOrNull()
     }
 
