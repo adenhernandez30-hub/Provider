@@ -31,6 +31,7 @@ class ProviderMappingCache(
     private val mutex = Mutex()
     private val values = mutableMapOf<Int, Entry>()
     private val inFlight = mutableMapOf<Int, Deferred<List<ProviderMapping>>>()
+    private val loaderScope = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]))
 
     suspend fun get(anilistId: Int): List<ProviderMapping>? =
         mutex.withLock {
@@ -47,7 +48,7 @@ class ProviderMappingCache(
 
         val deferred = mutex.withLock {
             getCachedUnsafe(anilistId)?.let { return@withLock null }
-            inFlight[anilistId] ?: scope.async(SupervisorJob(scope.coroutineContext[Job])) {
+            inFlight[anilistId] ?: loaderScope.async {
                 loader()
             }.also { created ->
                 inFlight[anilistId] = created
