@@ -21,7 +21,23 @@ class KuramanimeProvider(browserResolver: BrowserStreamResolver? = null) : Anime
 
     override suspend fun search(query: String): List<ProviderAnime> {
         val doc = getDocument(baseUrl + "/anime?search=" + encode(query) + "&page=1", baseUrl) ?: return emptyList()
-        return doc.select("div.filter__gallery > a").mapNotNull { a ->
+        val primary = doc.select("div.filter__gallery > a").mapNotNull { a ->
+            val href = a.absUrl("href")
+            val title = a.selectFirst("div > h5")?.text()?.trim().orEmpty()
+            if (href.isBlank() || title.isBlank()) null
+            else ProviderAnime("$id:$href", title, id, posterUrl = a.selectFirst("div.set-bg")?.attr("data-setbg"))
+        }.distinctBy { it.id }
+        if (primary.isNotEmpty()) return primary
+
+        // Theme/domain variants can move the gallery wrapper while keeping
+        // /anime/ links intact. Fall back to direct anime links.
+        return doc.select("a[href*='/anime/']").mapNotNull { a ->
+            val href = a.absUrl("href")
+            val title = a.selectFirst("h5, .title, .name")?.text()?.trim()
+                ?: a.attr("title").trim().ifBlank { a.text().trim() }
+            if (href.isBlank() || title.isBlank()) null
+            else ProviderAnime("$id:$href", title, id, posterUrl = a.selectFirst("img")?.attr("src"))
+        }.distinctBy { it.id }.take(30)
             val href = a.absUrl("href"); val title = a.selectFirst("div > h5")?.text()?.trim().orEmpty()
             if (href.isBlank() || title.isBlank()) null else ProviderAnime("$id:$href", title, id, posterUrl = a.selectFirst("div.set-bg")?.attr("data-setbg"))
         }.distinctBy { it.id }
