@@ -61,10 +61,8 @@ class SamehadakuProvider(
         val episode = getEpisodes("$id:$raw").firstOrNull { it.number == episodeNumber }
         val episodeUrl = episode?.id?.removePrefix("$id:")
         if (!episodeUrl.isNullOrBlank() && episodeUrl.startsWith("http", true)) {
-            val resolved = resolver.resolve(listOf(episodeUrl), referer = "$mainUrl/"); if (resolved.isNotEmpty()) return resolved.map { it.copy(providerId = id) }
-        }
-        if (episode == null && raw.contains("one-piece", true)) {
-            val resolved = resolver.resolve(listOf("$mainUrl/one-piece-episode-$episodeNumber/"), referer = "$mainUrl/"); if (resolved.isNotEmpty()) return resolved.map { it.copy(providerId = id) }
+            val siteResolved = SiteSpecificStreamResolver.samehadaku(client, resolver, episodeUrl)
+            if (siteResolved.isNotEmpty()) return siteResolved.map { it.copy(providerId = id) }
         }
         return getStreamsGateway(raw, episodeNumber)
     }
