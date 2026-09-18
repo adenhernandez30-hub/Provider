@@ -46,7 +46,7 @@ object SiteSpecificStreamResolver {
             val decoded = decodeBase64(encoded).drop(1).dropLast(1)
             val fields = decoded.split(",").associate {
                 val key = it.substringBefore(":").replace("\"", "").trim()
-                val value = it.substringAfter(":", "").replace(""", "").trim()
+                val value = it.substringAfter(":", "").replace("\"", "").trim()
                 key to value
             }
             val id = fields["id"].orEmpty()
