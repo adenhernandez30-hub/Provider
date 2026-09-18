@@ -8,8 +8,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - name: Checkout
+      - name: Checkout backend-foundation
         uses: actions/checkout@v4
+        with:
+          ref: backend-foundation
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -26,3 +28,12 @@ jobs:
           ANILAB_E2E_QUERY: 'One Piece'
           ANILAB_E2E_TIMEOUT_MS: '60000'
         run: ./gradlew :provider:test --tests com.kakaanime.provider.ProviderRealSiteE2ETest --stacktrace
+
+      - name: Upload E2E matrix report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: provider-e2e-matrix
+          path: build/reports/provider-e2e-matrix.md
+          if-no-files-found: warn
+          retention-days: 7
