@@ -35,7 +35,7 @@ class BackendServerTest {
 
             val search = request(port, "/search/test")
             assertEquals(200, search.status)
-            assertTrue(search.body.contains("A \"quote\""))
+            assertTrue(search.body.contains("A \\\"quote\\\""))
             assertTrue(search.body.contains("\\n"))
 
             val anime = request(port, "/anime/fake-anime")
