@@ -21,6 +21,7 @@ class ProviderRealSiteE2ETest {
         var anime: String = "SKIP",
         var episodes: String = "SKIP",
         var stream: String = "SKIP",
+        val details: MutableList<String> = mutableListOf(),
     )
 
     @Test
@@ -47,6 +48,13 @@ class ProviderRealSiteE2ETest {
         }
         println()
 
+        results.filter { it.details.isNotEmpty() }.forEach { result ->
+            result.details.forEach { detail ->
+                println("[E2E] ${result.name}: $detail")
+            }
+        }
+        println()
+
         val searchPass = results.count { it.search == "PASS" }
         val animePass = results.count { it.anime == "PASS" }
         val episodePass = results.count { it.episodes == "PASS" }
@@ -61,6 +69,10 @@ class ProviderRealSiteE2ETest {
             results.isNotEmpty() && searchPass > 0,
             "No registered provider completed SEARCH for query '$query'."
         )
+        assertTrue(
+            streamPass > 0,
+            "No registered provider produced a usable stream for query '$query'. See [E2E] diagnostics above."
+        )
     }
 
     private suspend fun runProvider(
@@ -73,8 +85,14 @@ class ProviderRealSiteE2ETest {
         val search = runStage(timeoutMs) { provider.search(query) }
         val animeResults = search.getOrNull()
         result.search = when {
-            search.isFailure -> "ERROR"
-            animeResults.isNullOrEmpty() -> "EMPTY"
+            search.isFailure -> {
+                result.details += "SEARCH ERROR: ${errorSummary(search.exceptionOrNull())}"
+                "ERROR"
+            }
+            animeResults.isNullOrEmpty() -> {
+                result.details += "SEARCH EMPTY: no result for query '$query'"
+                "EMPTY"
+            }
             else -> "PASS"
         }
         if (animeResults.isNullOrEmpty()) return result
@@ -82,8 +100,14 @@ class ProviderRealSiteE2ETest {
         val selected = animeResults.first()
         val anime = runStage(timeoutMs) { provider.getAnime(selected.id) }
         result.anime = when {
-            anime.isFailure -> "ERROR"
-            anime.getOrNull() == null -> "EMPTY"
+            anime.isFailure -> {
+                result.details += "ANIME ERROR: ${errorSummary(anime.exceptionOrNull())}"
+                "ERROR"
+            }
+            anime.getOrNull() == null -> {
+                result.details += "ANIME EMPTY: selected result could not be resolved"
+                "EMPTY"
+            }
             else -> "PASS"
         }
         if (anime.getOrNull() == null) return result
@@ -91,8 +115,14 @@ class ProviderRealSiteE2ETest {
         val episodes = runStage(timeoutMs) { provider.getEpisodes(selected.id) }
         val episodeList = episodes.getOrNull().orEmpty()
         result.episodes = when {
-            episodes.isFailure -> "ERROR"
-            episodeList.isEmpty() -> "EMPTY"
+            episodes.isFailure -> {
+                result.details += "EPISODES ERROR: ${errorSummary(episodes.exceptionOrNull())}"
+                "ERROR"
+            }
+            episodeList.isEmpty() -> {
+                result.details += "EPISODES EMPTY: no episodes returned"
+                "EMPTY"
+            }
             else -> "PASS"
         }
         if (episodeList.isEmpty()) return result
@@ -102,9 +132,15 @@ class ProviderRealSiteE2ETest {
             provider.getStreams(selected.id, firstEpisode.number)
         }
         result.stream = when {
-            streams.isFailure -> "ERROR"
+            streams.isFailure -> {
+                result.details += "STREAM ERROR: ${errorSummary(streams.exceptionOrNull())}"
+                "ERROR"
+            }
             streams.getOrNull().orEmpty().any { it.url.isNotBlank() && it.type != StreamType.UNKNOWN } -> "PASS"
-            else -> "EMPTY"
+            else -> {
+                result.details += "STREAM EMPTY: no usable typed stream for episode ${firstEpisode.number}"
+                "EMPTY"
+            }
         }
 
         return result
@@ -115,5 +151,12 @@ class ProviderRealSiteE2ETest {
         block: suspend () -> T,
     ): Result<T> = runCatching {
         withTimeout(timeoutMs) { block() }
+    }
+
+    private fun errorSummary(error: Throwable?): String {
+        if (error == null) return "unknown error"
+        val message = error.message?.replace(Regex("\\s+"), " ")?.trim().orEmpty()
+        return if (message.isBlank()) error::class.simpleName.orEmpty()
+        else "${error::class.simpleName}: ${message.take(180)}"
     }
 }
