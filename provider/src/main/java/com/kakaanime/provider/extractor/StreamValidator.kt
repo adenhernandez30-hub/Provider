@@ -66,6 +66,7 @@ class StreamValidator {
         bytes.size >= 8 && String(bytes, 4, 4, StandardCharsets.US_ASCII) == "ftyp"
 
     private companion object {
-        const val PROBE_BYTES = 16_384\n        const val UA = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36"
+        const val PROBE_BYTES = 16_384L
+        const val UA = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36"
     }
 }
