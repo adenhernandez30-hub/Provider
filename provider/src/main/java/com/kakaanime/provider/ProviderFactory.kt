@@ -31,13 +31,13 @@ object ProviderFactory {
             register(NativeHtmlProvider("riie", "RiiE", 280, "https://riie.jp", browserResolver))
             register(NativeHtmlProvider("animekuindo", "Animekuindo", 300, "https://animekuindo.live", browserResolver))
 
-            register(RemoteSourceProviderV2("animeindo", "AnimeIndo", 40, "animeindo"))
-            register(RemoteSourceProviderV2("hunter-no-sekai", "Hunter no Sekai", 110, "hunter-no-sekai"))
-            register(RemoteSourceProviderV2("gomunime", "Gomunime", 120, "gomunime"))
-            register(RemoteSourceProviderV2("neonime", "NeoNime", 130, "neonime"))
-            register(RemoteSourceProviderV2("nimegami", "Nimegami", 250, "nimegami"))
-            register(RemoteSourceProviderV2("kusonime", "Kusonime", 290, "kusonime"))
-            register(RemoteSourceProviderV2("allanime", "AllAnime", 320, "allanime"))
+            register(RemoteSourceProviderV2("animeindo", "AnimeIndo", 40, "animeindo", browserResolver))
+            register(RemoteSourceProviderV2("hunter-no-sekai", "Hunter no Sekai", 110, "hunter-no-sekai", browserResolver))
+            register(RemoteSourceProviderV2("gomunime", "Gomunime", 120, "gomunime", browserResolver))
+            register(RemoteSourceProviderV2("neonime", "NeoNime", 130, "neonime", browserResolver))
+            register(RemoteSourceProviderV2("nimegami", "Nimegami", 250, "nimegami", browserResolver))
+            register(RemoteSourceProviderV2("kusonime", "Kusonime", 290, "kusonime", browserResolver))
+            register(RemoteSourceProviderV2("allanime", "AllAnime", 320, "allanime", browserResolver))
         }
     }
 

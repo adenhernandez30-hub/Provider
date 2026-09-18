@@ -1,5 +1,8 @@
 package com.kakaanime.provider
 
+import com.kakaanime.provider.extractor.BrowserStreamResolver
+import com.kakaanime.provider.extractor.ExtractorRegistry
+import com.kakaanime.provider.extractor.StreamResolver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -14,13 +17,18 @@ class RemoteSourceProviderV2(
     override val id: String,
     override val name: String,
     override val priority: Int,
-    private val sourceSlug: String
+    private val sourceSlug: String,
+    browserResolver: BrowserStreamResolver? = null,
 ) : AnimeProvider {
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .callTimeout(20, TimeUnit.SECONDS)
         .build()
+    private val streamResolver = StreamResolver(
+        ExtractorRegistry(browserResolver = browserResolver),
+        browserResolver = browserResolver,
+    )
 
     private val sanka = "https://www.sankavollerei.web.id/anime"
     private val wajik = "https://wajik-anime-api.vercel.app"
@@ -60,9 +68,30 @@ class RemoteSourceProviderV2(
         val episodeId = getEpisodes("$id:$slug").firstOrNull { it.number == episodeNumber }?.id?.removePrefix("$id:")?.trim('/') ?: episodeNumber.toString()
         for (url in episodeUrls(slug, episodeId, episodeNumber)) {
             val root = requestJson(url) ?: continue
-            val streams = mutableListOf<ProviderStream>()
-            collectStreams(root, streams)
-            ProviderStreamDeduplicator.deduplicate(streams).takeIf { it.isNotEmpty() }?.let { return it }
+            val candidates = mutableListOf<ProviderStream>()
+            collectStreams(root, candidates)
+            if (candidates.isEmpty()) continue
+
+            // Remote gateways return both direct media and embed/page URLs, often
+            // typed incorrectly or not typed at all. Never expose those raw values
+            // as playable streams: run every candidate through the same extractor
+            // and network validation pipeline as native providers.
+            val resolved = streamResolver.resolve(
+                candidates.map { it.url },
+                referer = url,
+            )
+            if (resolved.isNotEmpty()) {
+                val metadata = candidates.associateBy { it.url }
+                return resolved.map { stream ->
+                    val original = metadata[stream.url]
+                    stream.copy(
+                        providerId = id,
+                        quality = stream.quality ?: original?.quality,
+                        language = stream.language ?: original?.language,
+                        subtitleLanguage = stream.subtitleLanguage ?: original?.subtitleLanguage,
+                    )
+                }.distinctBy { it.url }
+            }
         }
         return emptyList()
     }
@@ -156,13 +185,7 @@ class RemoteSourceProviderV2(
         }
     }
 
-    private fun stream(url: String, quality: String?) = ProviderStream(id, url, quality?.ifBlank { null }, "Japanese", "Indonesian", when {
-        url.contains(".m3u8", true) -> StreamType.HLS
-        url.contains(".mpd", true) -> StreamType.DASH
-        url.contains(".mp4", true) -> StreamType.MP4
-        else -> StreamType.UNKNOWN
-    })
-
+    private fun stream(url: String, quality: String?) = ProviderStream(id, url, quality?.ifBlank { null }, "Japanese", "Indonesian", StreamType.UNKNOWN)
     private fun JSONObject.firstString(vararg keys: String): String? = keys.firstNotNullOfOrNull { key -> optString(key).trim().ifBlank { null } }
     private fun JSONObject.episodeNumber(): Int? = firstString("episode", "episodeNumber", "number", "episodeNum")?.toIntOrNull()
         ?: Regex("(?:episode|eps|ep)[^0-9]*(\\d+)", RegexOption.IGNORE_CASE).find(firstString("title", "name", "slug", "endpoint", "id", "judul").orEmpty())?.groupValues?.getOrNull(1)?.toIntOrNull()
