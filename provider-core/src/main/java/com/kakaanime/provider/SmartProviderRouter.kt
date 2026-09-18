@@ -6,11 +6,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 
-/**
- * Provider router with bounded fan-out for operations where results from
- * multiple providers are useful. Single-result operations retain sequential
- * fallback semantics.
- */
+/** Provider router with bounded fan-out and adaptive provider ordering. */
 class SmartProviderRouter(
     private val registry: ProviderRegistry,
     private val healthMonitor: ProviderHealthMonitor = ProviderHealthMonitor(),
@@ -30,7 +26,7 @@ class SmartProviderRouter(
     }
 
     suspend fun getAnime(animeId: String): ProviderAnime? {
-        for (provider in registry.all()) {
+        for (provider in orderedProviders()) {
             val result = request(provider) { provider.getAnime(animeId) }.getOrNull()
             if (result != null) return result
         }
@@ -38,7 +34,7 @@ class SmartProviderRouter(
     }
 
     suspend fun getEpisodes(animeId: String): List<ProviderEpisode> {
-        for (provider in registry.all()) {
+        for (provider in orderedProviders()) {
             val result = request(provider) { provider.getEpisodes(animeId) }
                 .getOrDefault(emptyList())
             if (result.isNotEmpty()) return result
@@ -50,11 +46,14 @@ class SmartProviderRouter(
         parallelRequests { provider -> provider.getStreams(animeId, episodeNumber) }
             .flatMap { it.getOrDefault(emptyList()) }
 
+    private fun orderedProviders(): List<AnimeProvider> =
+        ProviderRoutingPolicy.order(registry.all(), healthMonitor)
+
     private suspend fun <T> parallelRequests(
         block: suspend (AnimeProvider) -> T,
     ): List<Result<T>> = coroutineScope {
         val semaphore = Semaphore(maxParallelProviders)
-        registry.all().map { provider ->
+        orderedProviders().map { provider ->
             async {
                 semaphore.withPermit {
                     request(provider) { block(provider) }
