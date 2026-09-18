@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit
 class SamehadakuEpisodeExtractor(browserResolver: BrowserStreamResolver? = null) : StreamExtractor {
     override val id = "samehadaku-episode"
     override val priority = 120
-    private val mainHost = "v2.samehadaku.how"
+    private val mainHost = "samehadaku.li"
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS)
         .callTimeout(30, TimeUnit.SECONDS).followRedirects(true).build()
