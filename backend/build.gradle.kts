@@ -9,6 +9,7 @@ version = "0.1.0"
 
 dependencies {
     implementation(project(":provider"))
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
 }
 
 kotlin {
