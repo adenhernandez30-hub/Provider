@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 plugins {
     id("org.jetbrains.kotlin.jvm")
 }
@@ -13,10 +15,8 @@ dependencies {
     implementation("org.json:json:20240303")
 }
 
-sourceSets {
-    main {
-        kotlin.exclude("**/android/**")
-    }
+tasks.withType<KotlinCompile>().configureEach {
+    exclude("**/android/**")
 }
 
 kotlin {
