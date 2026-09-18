@@ -1,0 +1,31 @@
+name: Provider Validation
+
+on:
+  push:
+    branches: [ backend-foundation ]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Test provider core
+        run: ./gradlew :provider-core:test --stacktrace
+
+      - name: Build provider
+        run: ./gradlew :provider:build --stacktrace
+
+      - name: Build backend
+        run: ./gradlew :backend:build --stacktrace
