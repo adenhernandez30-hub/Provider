@@ -2,9 +2,8 @@ package com.kakaanime.provider
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -30,8 +29,7 @@ class ProviderMappingCache(
 
     private val mutex = Mutex()
     private val values = mutableMapOf<Int, Entry>()
-    private val inFlight = mutableMapOf<Int, Deferred<List<ProviderMapping>>>()
-    private val loaderScope = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]))
+    private val inFlight = mutableMapOf<Int, Deferred<Result<List<ProviderMapping>>>>()
 
     suspend fun get(anilistId: Int): List<ProviderMapping>? =
         mutex.withLock {
@@ -48,8 +46,14 @@ class ProviderMappingCache(
 
         val deferred = mutex.withLock {
             getCachedUnsafe(anilistId)?.let { return@withLock null }
-            inFlight[anilistId] ?: loaderScope.async {
-                loader()
+            inFlight[anilistId] ?: scope.async {
+                try {
+                    Result.success(loader())
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Throwable) {
+                    Result.failure(error)
+                }
             }.also { created ->
                 inFlight[anilistId] = created
             }
@@ -59,20 +63,16 @@ class ProviderMappingCache(
             return get(anilistId).orEmpty()
         }
 
-        return try {
-            val mappings = deferred.await()
-            mutex.withLock {
-                values[anilistId] = Entry(
-                    mappings = mappings.toList(),
-                    expiresAtMs = nowMs() + ttlMs,
-                )
-                inFlight.remove(anilistId)
-            }
-            mappings
-        } catch (error: Throwable) {
-            mutex.withLock { inFlight.remove(anilistId) }
-            throw error
+        val result = deferred.await()
+        val mappings = result.getOrThrow()
+        mutex.withLock {
+            values[anilistId] = Entry(
+                mappings = mappings.toList(),
+                expiresAtMs = nowMs() + ttlMs,
+            )
+            inFlight.remove(anilistId)
         }
+        return mappings
     }
 
     suspend fun invalidate(anilistId: Int) {
