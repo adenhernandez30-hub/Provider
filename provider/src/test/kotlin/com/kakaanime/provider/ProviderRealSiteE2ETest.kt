@@ -1,5 +1,6 @@
 package com.kakaanime.provider
 
+import java.io.File
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
@@ -9,9 +10,10 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 @EnabledIfEnvironmentVariable(named = "ANILAB_REAL_E2E", matches = "true")
 class ProviderRealSiteE2ETest {
     private data class StageResult(
+        val id: String,
         val name: String,
         var search: String = "SKIP",
-        var anime: String = "SKIP",
+        var detail: String = "SKIP",
         var episodes: String = "SKIP",
         var stream: String = "SKIP",
         val details: MutableList<String> = mutableListOf(),
@@ -21,35 +23,37 @@ class ProviderRealSiteE2ETest {
     fun runAllProvidersInOneBatch() = runBlocking {
         val query = System.getenv("ANILAB_E2E_QUERY").orEmpty().ifBlank { "One Piece" }
         val timeoutMs = System.getenv("ANILAB_E2E_TIMEOUT_MS")?.toLongOrNull()?.coerceIn(5_000L, 120_000L) ?: 60_000L
+        val requiredIds = System.getenv("ANILAB_E2E_REQUIRED_PROVIDERS")
+            .orEmpty()
+            .ifBlank { "otakudesu,samehadaku,kuramanime,animedao,animeisme" }
+            .split(',')
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .toSet()
         val providers = ProviderFactory.createRegistry().all()
         val results = providers.map { provider -> runProvider(provider, query, timeoutMs) }
 
-        println()
-        println("=== AniLab Provider Real-Site E2E ===")
-        println("Query: $query")
-        println("Providers: ${results.size}")
-        println()
-        println("%-24s %-10s %-10s %-10s %-10s".format("PROVIDER", "SEARCH", "ANIME", "EPISODES", "STREAM"))
-        results.forEach { println("%-24s %-10s %-10s %-10s %-10s".format(it.name, it.search, it.anime, it.episodes, it.stream)) }
-        println()
-        results.filter { it.details.isNotEmpty() }.forEach { result ->
-            result.details.forEach { detail -> println("[E2E] ${result.name}: $detail") }
+        val report = buildReport(query, timeoutMs, requiredIds, results)
+        File("build/reports/provider-e2e-matrix.md").apply {
+            parentFile.mkdirs()
+            writeText(report)
         }
-        println()
-        val searchPass = results.count { it.search == "PASS" }
-        val animePass = results.count { it.anime == "PASS" }
-        val episodePass = results.count { it.episodes == "PASS" }
-        val streamPass = results.count { it.stream == "PASS" }
-        println("SEARCH PASS    : $searchPass/${results.size}")
-        println("ANIME PASS     : $animePass/${results.size}")
-        println("EPISODES PASS  : $episodePass/${results.size}")
-        println("STREAM PASS    : $streamPass/${results.size}")
-        assertTrue(results.isNotEmpty() && searchPass > 0, "No provider completed SEARCH.")
-        assertTrue(streamPass > 0, "No provider produced a usable stream. See E2E diagnostics.")
+
+        println(report)
+
+        assertTrue(results.isNotEmpty(), "Provider registry is empty.")
+        val requiredResults = requiredIds.mapNotNull { id -> results.firstOrNull { it.id == id } }
+        val missingRequired = requiredIds - results.map { it.id }.toSet()
+        assertTrue(missingRequired.isEmpty(), "Required providers are missing from registry: ${missingRequired.joinToString()}")
+        val failedRequired = requiredResults.filter { it.stream != "PASS" }
+        assertTrue(
+            failedRequired.isEmpty(),
+            "Required provider stream E2E failed: ${failedRequired.joinToString { "${it.id}=${it.stream}" }}. See build/reports/provider-e2e-matrix.md."
+        )
     }
 
     private suspend fun runProvider(provider: AnimeProvider, query: String, timeoutMs: Long): StageResult {
-        val result = StageResult(provider.name)
+        val result = StageResult(provider.id, provider.name)
         val search = runStage(timeoutMs) { provider.search(query) }
         val animeResults = search.getOrNull()
         result.search = when {
@@ -58,15 +62,17 @@ class ProviderRealSiteE2ETest {
             else -> "PASS"
         }
         if (animeResults.isNullOrEmpty()) return result
+
         val selected = animeResults.first()
         val anime = runStage(timeoutMs) { provider.getAnime(selected.id) }
         val animeValue = anime.getOrNull()
-        result.anime = when {
-            anime.isFailure -> { result.details += "ANIME ERROR: ${errorSummary(anime.exceptionOrNull())}"; "ERROR" }
-            animeValue == null -> { result.details += "ANIME EMPTY: selected result could not be resolved"; "EMPTY" }
+        result.detail = when {
+            anime.isFailure -> { result.details += "DETAIL ERROR: ${errorSummary(anime.exceptionOrNull())}"; "ERROR" }
+            animeValue == null -> { result.details += "DETAIL EMPTY: selected result could not be resolved"; "EMPTY" }
             else -> "PASS"
         }
         if (animeValue == null) return result
+
         val episodes = runStage(timeoutMs) { provider.getEpisodes(selected.id) }
         val episodeList = episodes.getOrNull().orEmpty()
         result.episodes = when {
@@ -75,6 +81,7 @@ class ProviderRealSiteE2ETest {
             else -> "PASS"
         }
         if (episodeList.isEmpty()) return result
+
         val targetEpisode = when (provider.id) {
             "otakudesu" -> 1
             "samehadaku" -> 1086
@@ -89,10 +96,11 @@ class ProviderRealSiteE2ETest {
             result.details += "STREAM SKIP: no positive episode number was returned"
             return result
         }
+
         val streams = runStage(timeoutMs) { provider.getStreams(selected.id, episode.number) }
         result.stream = when {
             streams.isFailure -> { result.details += "STREAM ERROR: ${errorSummary(streams.exceptionOrNull())}"; "ERROR" }
-            streams.getOrNull().orEmpty().any { it.url.isNotBlank() && it.type != StreamType.UNKNOWN } -> "PASS"
+            streams.getOrNull().orEmpty().any { it.url.startsWith("http", true) && it.type != StreamType.UNKNOWN } -> "PASS"
             else -> { result.details += "STREAM EMPTY: no usable typed stream for episode ${episode.number}"; "EMPTY" }
         }
         return result
@@ -100,6 +108,32 @@ class ProviderRealSiteE2ETest {
 
     private suspend fun <T> runStage(timeoutMs: Long, block: suspend () -> T): Result<T> =
         runCatching { withTimeout(timeoutMs) { block() } }
+
+    private fun buildReport(
+        query: String,
+        timeoutMs: Long,
+        requiredIds: Set<String>,
+        results: List<StageResult>,
+    ): String = buildString {
+        appendLine("# AniLab Provider Real-Site E2E Matrix")
+        appendLine()
+        appendLine("- Query: $query")
+        appendLine("- Timeout per stage: ${timeoutMs}ms")
+        appendLine("- Required stream providers: ${requiredIds.joinToString()}")
+        appendLine("- Provider count: ${results.size}")
+        appendLine()
+        appendLine("| Provider | SEARCH | DETAIL | EPISODES | STREAM |")
+        appendLine("|---|---|---|---|---|")
+        results.forEach { result ->
+            appendLine("| ${result.id} | ${result.search} | ${result.detail} | ${result.episodes} | ${result.stream} |")
+        }
+        appendLine()
+        results.filter { it.details.isNotEmpty() }.forEach { result ->
+            appendLine("## ${result.name} (${result.id})")
+            result.details.forEach { detail -> appendLine("- $detail") }
+            appendLine()
+        }
+    }
 
     private fun errorSummary(error: Throwable?): String {
         if (error == null) return "unknown error"
