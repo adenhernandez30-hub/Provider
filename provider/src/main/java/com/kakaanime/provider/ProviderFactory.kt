@@ -13,7 +13,7 @@ object ProviderFactory {
             register(NativeHtmlProvider("kuronime", "Kuronime", 80, "https://kuronime.net", browserResolver))
             register(NativeHtmlProvider("oploverz", "Oploverz", 200, "https://oploverz.cc", browserResolver))
             register(NativeHtmlProvider("zoronime", "Zoronime", 50, "https://zoronime.com", browserResolver))
-            register(NativeHtmlProvider("animedao", "AnimeDao", 35, "https://animedao.in", browserResolver))
+            register(AnimeDaoProvider(browserResolver))
 
             register(NativeHtmlProvider("animasu", "Animasu", 30, "https://www.animasu.my.id", browserResolver))
             register(NativeHtmlProvider("animekompi", "AnimeKompi", 70, "https://animekompi.link", browserResolver))
@@ -22,7 +22,7 @@ object ProviderFactory {
             register(NativeHtmlProvider("nontonanimeid", "NontonAnimeID", 150, "https://s13.nontonanimeid.boats", browserResolver))
             register(NativeHtmlProvider("animeisme", "Animeisme", 160, "https://animeisme.net", browserResolver))
             register(NativeHtmlProvider("animeku", "Animeku", 170, "https://animeku.tv", browserResolver))
-            register(NativeHtmlProvider("kuramanime", "Kuramanime", 210, "https://www.kuramanime.web.id", browserResolver))
+            register(KuramanimeProvider(browserResolver))
             register(NativeHtmlProvider("wibudesu", "Wibudesu", 220, "https://wibudesu.co", browserResolver))
             register(NativeHtmlProvider("meownime", "Meownime", 230, "https://meownime.ltd", browserResolver))
             register(NativeHtmlProvider("anibatch", "Anibatch", 240, "https://anibatch.anibatch.moe", browserResolver))
