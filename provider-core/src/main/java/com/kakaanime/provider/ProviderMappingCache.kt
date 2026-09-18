@@ -64,7 +64,12 @@ class ProviderMappingCache(
         }
 
         val result = deferred.await()
-        val mappings = result.getOrThrow()
+        val mappings = result.getOrNull()
+        if (mappings == null) {
+            mutex.withLock { inFlight.remove(anilistId) }
+            throw result.exceptionOrNull() ?: IllegalStateException("Mapping loader failed without an exception")
+        }
+
         mutex.withLock {
             values[anilistId] = Entry(
                 mappings = mappings.toList(),
