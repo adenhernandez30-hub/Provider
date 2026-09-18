@@ -27,34 +27,34 @@ class BackendServerTest {
         try {
             val root = request(port, "/")
             assertEquals(200, root.status)
-            assertTrue(root.body.contains("\\"service\\":\\"AniLab Provider Backend\\""))
+            assertTrue(root.body.contains("\"service\":\"AniLab Provider Backend\""))
 
             val providers = request(port, "/providers")
             assertEquals(200, providers.status)
-            assertTrue(providers.body.contains("\\"id\\":\\"fake\\""))
+            assertTrue(providers.body.contains("\"id\":\"fake\""))
 
             val search = request(port, "/search/test")
             assertEquals(200, search.status)
             assertTrue(search.body.contains("A \\"quote\\""))
-            assertTrue(search.body.contains("\\\\n"))
+            assertTrue(search.body.contains("\\n"))
 
             val anime = request(port, "/anime/fake-anime")
             assertEquals(200, anime.status)
-            assertTrue(anime.body.contains("\\"title\\":\\"Fake Anime\\""))
+            assertTrue(anime.body.contains("\"title\":\"Fake Anime\""))
 
             val episodes = request(port, "/anime/fake-anime/episodes")
             assertEquals(200, episodes.status)
-            assertTrue(episodes.body.contains("\\"number\\":1"))
+            assertTrue(episodes.body.contains("\"number\":1"))
 
             val stream = request(port, "/anime/fake-anime/episode/1/streams")
             assertEquals(200, stream.status)
-            assertTrue(stream.body.contains("\\"providerId\\":\\"fake\\""))
-            assertTrue(stream.body.contains("\\"type\\":\\"HLS\\""))
+            assertTrue(stream.body.contains("\"providerId\":\"fake\""))
+            assertTrue(stream.body.contains("\"type\":\"HLS\""))
 
             val health = request(port, "/health")
             assertEquals(200, health.status)
-            assertTrue(health.body.contains("\\"status\\":\\"HEALTHY\\""))
-            assertTrue(health.body.contains("\\"successfulRequests\\":4"))
+            assertTrue(health.body.contains("\"status\":\"HEALTHY\""))
+            assertTrue(health.body.contains("\"successfulRequests\":4"))
 
             val invalidEpisode = request(port, "/anime/fake-anime/episode/nope/streams")
             assertEquals(400, invalidEpisode.status)
