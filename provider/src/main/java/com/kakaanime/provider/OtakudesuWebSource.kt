@@ -15,8 +15,8 @@ internal class OtakudesuWebSource {
         .callTimeout(30, TimeUnit.SECONDS).build()
 
     private val sources = listOf(
-        WebSource("fit", "https://otakudesu.fit", true),
         WebSource("blog", "https://otakudesu.blog", false),
+        WebSource("fit", "https://otakudesu.fit", true),
         WebSource("id", "https://otakudesu.id", false),
         WebSource("ro", "https://otakudesu.ro", false),
         WebSource("cloud", "https://otakudesu.cloud", false)
