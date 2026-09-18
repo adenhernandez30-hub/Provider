@@ -60,6 +60,7 @@ class ProviderCacheTest {
         now += 2 * 60 * 1000L + 1
         val loaded = cache.getOrLoad("anime-1") { calls++; pending }
         assertEquals(pending, loaded)
+        delay(100)
         assertEquals(2, calls)
     }
 
@@ -82,6 +83,7 @@ class ProviderCacheTest {
         cache.getOrLoad("anime-1", 1) { calls++; listOf(stream) }
         now += 2 * 60 * 1000L + 1
         cache.getOrLoad("anime-1", 1) { calls++; listOf(stream) }
+        delay(100)
 
         assertEquals(2, calls)
         assertTrue(health.snapshot("degraded").status == "FAILING")
