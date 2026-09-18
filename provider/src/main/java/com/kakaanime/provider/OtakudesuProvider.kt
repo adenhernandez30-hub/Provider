@@ -86,46 +86,26 @@ class OtakudesuProvider(browserResolver: BrowserStreamResolver? = null) : AnimeP
     override suspend fun getStreams(animeId: String, episodeNumber: Int): List<ProviderStream> {
         val episode = getEpisodes(animeId).firstOrNull { it.number == episodeNumber } ?: return emptyList()
         val episodeRef = episode.id.removePrefix("$id:")
-
+        if (episodeRef.startsWith("http", true)) {
+            val siteResolved = SiteSpecificStreamResolver.otakudesu(client, streamResolver, episodeRef)
+            if (siteResolved.isNotEmpty()) return siteResolved.map { it.copy(providerId = id) }
+        }
         if (episodeRef.startsWith("community:")) {
             val episodeSlug = episodeRef.removePrefix("community:").trim('/')
             val data = requestJson("$communityUrl/episode/${encodePath(episodeSlug)}")?.optJSONObject("data")
             if (data != null) {
                 val candidates = buildList<String> {
-                    data.optString("stream_url").trim().takeIf { it.isNotBlank() }?.let { add(it) }
+                    data.optString("stream_url").trim().takeIf { it.isNotBlank() }?.let(::add)
                     val mirrors = data.optJSONArray("mirrors") ?: JSONArray()
                     for (i in 0 until mirrors.length()) {
                         mirrors.optJSONObject(i)?.optString("content")?.trim()?.takeIf { it.isNotBlank() }?.let { token ->
-                            requestJson("$communityUrl/mirror?content=${encode(token)}")?.optJSONObject("data")?.optString("url")?.trim()?.takeIf { it.isNotBlank() }?.let { add(it) }
+                            requestJson("$communityUrl/mirror?content=${encode(token)}")?.optJSONObject("data")?.optString("url")?.trim()?.takeIf { it.isNotBlank() }?.let(::add)
                         }
                     }
                 }.distinct()
                 val resolved = streamResolver.resolve(candidates, referer = "https://otakudesu.blog/")
                 if (resolved.isNotEmpty()) return resolved.map { it.copy(providerId = id) }
             }
-        }
-
-        if (episodeRef.startsWith("http", true)) {
-            val page = webSource.getEpisodePage(OtakudesuWebSource.WebEpisode(episodeRef, episodeNumber, episode.title ?: "Episode $episodeNumber"))
-            val discovered = page?.let { webSource.discoverPlaybackUrls(it, episodeRef) }.orEmpty()
-            val candidates = (listOf(episodeRef) + discovered).distinct()
-            val resolved = streamResolver.resolve(candidates, referer = episodeRef)
-            if (resolved.isNotEmpty()) return resolved.map { it.copy(providerId = id) }
-        }
-
-        val episodeSlug = normalizeEpisodeSlug(episodeRef)
-        for (candidateUrl in listOf("$baseUrl/episode/${encodePath(episodeSlug)}", "$baseUrl/streams/${encodePath(episodeSlug)}")) {
-            val primary = requestJson(candidateUrl) ?: continue
-            val data = primary.optJSONObject("data")
-            val candidates = data?.streamCandidates().orEmpty()
-            val resolved = streamResolver.resolve(candidates, referer = episodeRef)
-            if (resolved.isNotEmpty()) return resolved.map { it.copy(providerId = id) }
-        }
-        val legacy = requestJson("$legacyUrl/episode/${encodePath(episodeSlug)}")
-        val streamUrl = legacy?.let { it.optJSONObject("episode_detail") ?: it }?.optString("stream_link")?.trim().orEmpty()
-        if (streamUrl.isNotBlank()) {
-            val resolved = streamResolver.resolve(listOf(streamUrl), referer = episodeRef)
-            if (resolved.isNotEmpty()) return resolved.map { it.copy(providerId = id) }
         }
         return emptyList()
     }
