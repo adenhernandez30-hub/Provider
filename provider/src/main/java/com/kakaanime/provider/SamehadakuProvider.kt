@@ -50,7 +50,25 @@ class SamehadakuProvider(
         val raw = normalizeAnimeId(animeId)
         val url = when { raw.startsWith("http", true) -> raw; raw.startsWith("/anime/", true) -> "$mainUrl$raw"; else -> "$mainUrl/anime/${raw.trim('/')}/" }
         requestDocument(url)?.let { document ->
-            val episodes = document.select("div.lstepsiode.listeps ul li, div.listeps ul li, div.episodelist ul li").mapNotNull { it.toProviderEpisode(raw) }.distinctBy { it.number }.sortedBy { it.number }
+            val scoped = document.select(
+                "div.lstepsiode.listeps ul li, div.listeps ul li, div.episodelist ul li, " +
+                    ".episodelist li, .list-episode li, .episode-list li, " +
+                    "#episode-list li, #episodeLists li, ul.episodelist li"
+            ).mapNotNull { it.toProviderEpisode(raw) }
+
+            val broad = document.select("a[href]").mapNotNull { anchor ->
+                val href = anchor.absUrl("href").ifBlank { anchor.attr("href") }
+                val title = anchor.text().trim()
+                if (href.isBlank() || title.isBlank()) null
+                else {
+                    val number = Regex("(?:Episode|Ep|Eps)[^0-9]*(\\d+)", RegexOption.IGNORE_CASE)
+                        .find("$title $href")?.groupValues?.getOrNull(1)?.toIntOrNull()
+                    if (number == null || !href.contains("episode", true)) null
+                    else ProviderEpisode("${id}:$href", "${id}:${raw.removePrefix("${id}:")}", number, id, title)
+                }
+            }
+
+            val episodes = (scoped + broad).distinctBy { it.number }.sortedBy { it.number }
             if (episodes.isNotEmpty()) return episodes
         }
         return getEpisodesGateway(raw)
