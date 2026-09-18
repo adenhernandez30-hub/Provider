@@ -92,6 +92,14 @@ class SamehadakuProvider(
         val episode = getEpisodes("$id:$raw").firstOrNull { it.number == episodeNumber }
         val episodeUrl = episode?.id?.removePrefix("$id:")
         if (!episodeUrl.isNullOrBlank() && episodeUrl.startsWith("http", true)) {
+            // The registry contains the dedicated Samehadaku episode extractor.
+            // Give it first priority because it handles the site's server -> embed
+            // handshake and can try multiple server buttons.
+            val extracted = resolver.resolve(listOf(episodeUrl), referer = episodeUrl)
+                .map { it.copy(providerId = id) }
+            if (extracted.isNotEmpty()) return extracted
+
+            // Keep the older site-specific path as a compatibility fallback.
             val siteResolved = SiteSpecificStreamResolver.samehadaku(client, resolver, episodeUrl)
             if (siteResolved.isNotEmpty()) return siteResolved.map { it.copy(providerId = id) }
         }
