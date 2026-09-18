@@ -82,7 +82,11 @@ object SiteSpecificStreamResolver {
         val doc = getDocument(client, episodeUrl, episodeUrl) ?: return emptyList()
         val origin = URI(episodeUrl)
         val ajaxUrl = "${origin.scheme}://${origin.host}/wp-admin/admin-ajax.php"
-        val servers = doc.select("#server > ul > li > div")
+        val servers = doc.select(
+            "#server > ul > li > div, " +
+                "#server .server_option, #server [data-post][data-nume], " +
+                ".server_option[data-post], .server_option [data-post]"
+        )
         for (server in servers) {
             val body = FormBody.Builder()
                 .add("action", "player_ajax")
@@ -91,8 +95,14 @@ object SiteSpecificStreamResolver {
                 .add("type", server.attr("data-type"))
                 .build()
             val iframe = post(client, ajaxUrl, body, episodeUrl)
-                ?.let { Regex("""src\s*=\s*["']([^"']+)["']""").find(it)?.groupValues?.getOrNull(1) }
-                ?.let { Jsoup.parse("<iframe src=\"$it\"></iframe>", episodeUrl).selectFirst("iframe")?.absUrl("src").orEmpty() }
+                ?.let { raw ->
+                    val jsonData = runCatching { org.json.JSONObject(raw).optString("data") }.getOrNull().orEmpty()
+                    val payload = jsonData.ifBlank { raw }
+                    Regex("""(?:src|url)\s*=\s*["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+                        .find(payload)?.groupValues?.getOrNull(1)
+                        ?: Jsoup.parse(payload, episodeUrl).selectFirst("iframe[src]")?.absUrl("src")
+                }
+                ?.orEmpty()
                 .orEmpty()
             if (iframe.isBlank()) continue
             val resolved = resolvePage(client, resolver, iframe, episodeUrl)
