@@ -75,7 +75,7 @@ class ProviderCacheTest {
         val stream = NormalizedStream(
             providerId = "degraded",
             url = "https://example.test/stream.m3u8",
-            quality = "1080p",
+            quality = StreamQuality.Q1080,
             type = StreamType.HLS,
         )
         val cache = ProviderStreamCache(scope, health, nowMs = { now })
