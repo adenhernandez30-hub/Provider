@@ -1,6 +1,6 @@
 package com.kakaanime.provider.extractor.extractors
 
-import android.util.Base64
+import java.util.Base64
 import com.kakaanime.provider.ProviderStream
 import com.kakaanime.provider.StreamType
 import com.kakaanime.provider.extractor.StreamExtractor
@@ -228,7 +228,7 @@ class OtakudesuServerExtractor : StreamExtractor {
         }.getOrNull()
     }
 
-    private fun decodeBase64(value: String?): String? = runCatching { String(Base64.decode(value?.trim(), Base64.DEFAULT), Charsets.UTF_8) }.getOrNull()
+    private fun decodeBase64(value: String?): String? = runCatching { String(Base64.getDecoder().decode(value?.trim()), Charsets.UTF_8) }.getOrNull()
     private fun resolveUrl(base: String, candidate: String): String? = runCatching { URI(base).resolve(candidate).toString() }.getOrNull()
     private fun decodeHtml(value: String): String = value.replace("&amp;", "&").replace("&quot;", "\"").replace("&#039;", "'").replace("&lt;", "<").replace("&gt;", ">")
     private fun String.isDirectMediaUrl(): Boolean { val clean = substringBefore('?').substringBefore('#').lowercase(); return clean.endsWith(".m3u8") || clean.endsWith(".mpd") || clean.endsWith(".mp4") || clean.endsWith(".mkv") || clean.endsWith(".webm") }
