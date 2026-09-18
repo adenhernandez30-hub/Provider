@@ -50,6 +50,19 @@ class SamehadakuProvider(
         val raw = normalizeAnimeId(animeId)
         val url = when { raw.startsWith("http", true) -> raw; raw.startsWith("/anime/", true) -> "$mainUrl$raw"; else -> "$mainUrl/anime/${raw.trim('/')}/" }
         requestDocument(url)?.let { document ->
+            val embedded = document.select("[data-content]").flatMap { holder ->
+                val html = holder.attr("data-content")
+                    .replace("&amp;", "&")
+                    .replace("&quot;", """)
+                    .replace("&#039;", "'")
+                    .replace("&lt;", "<")
+                    .replace("&gt;", ">")
+                if (html.isBlank() || !html.contains("episode", true)) emptyList()
+                else Jsoup.parseBodyFragment(html, url)
+                    .select("a[href]")
+                    .mapNotNull { it.toProviderEpisode(raw) }
+            }
+
             val scoped = document.select(
                 "div.lstepsiode.listeps ul li, div.listeps ul li, div.episodelist ul li, " +
                     ".episodelist li, .list-episode li, .episode-list li, " +
@@ -68,7 +81,7 @@ class SamehadakuProvider(
                 }
             }
 
-            val episodes = (scoped + broad).distinctBy { it.number }.sortedBy { it.number }
+            val episodes = (embedded + scoped + broad).distinctBy { it.number }.sortedBy { it.number }
             if (episodes.isNotEmpty()) return episodes
         }
         return getEpisodesGateway(raw)
