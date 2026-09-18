@@ -13,6 +13,7 @@ object ProviderFactory {
             register(NativeHtmlProvider("kuronime", "Kuronime", 80, "https://kuronime.net", browserResolver))
             register(NativeHtmlProvider("oploverz", "Oploverz", 200, "https://oploverz.cc", browserResolver))
             register(NativeHtmlProvider("zoronime", "Zoronime", 50, "https://zoronime.com", browserResolver))
+            register(NativeHtmlProvider("animedao", "AnimeDao", 35, "https://animedao.in", browserResolver))
 
             register(RemoteSourceProviderV2("animasu", "Animasu", 30, "animasu"))
             register(RemoteSourceProviderV2("animeindo", "AnimeIndo", 40, "animeindo"))
