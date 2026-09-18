@@ -28,10 +28,23 @@ class AnimeDaoProvider(browserResolver: BrowserStreamResolver? = null) : AnimePr
             else baseUrl + "/episodes/" + raw.substringAfterLast("/anime/").substringBefore("?").trim('/') + "-1x" + episodeNumber + "/"
         val doc = getDocument(episodeUrl) ?: return emptyList()
         val candidates = buildList {
-            known(doc, "gstore", "source").forEach(::add); known(doc, "vid", "video").forEach(::add)
-            known(doc, "fembed", "iframe").forEach(::add); known(doc, "sb", "iframe").forEach(::add)
-            known(doc, "streamtape", "iframe").forEach(::add); known(doc, "mixdrop", "iframe").forEach(::add)
-            doc.select("#videocontent iframe[src], #videocontent video source[src], #videocontent video[src]").map { it.absUrl("src").ifBlank { it.absUrl("data-src") } }.filter { it.isNotBlank() }.forEach(::add)
+            known(doc, "gstore", "source").forEach(::add)
+            known(doc, "vid", "video").forEach(::add)
+            known(doc, "fembed", "iframe").forEach(::add)
+            known(doc, "sb", "iframe").forEach(::add)
+            known(doc, "streamtape", "iframe").forEach(::add)
+            known(doc, "mixdrop", "iframe").forEach(::add)
+
+            // AnimeDao can move the active provider outside #videocontent
+            // after a player refresh. Collect page-level candidates too.
+            doc.select("iframe[src], iframe[data-src], embed[src], video[src], video[data-src], video source[src], video source[data-src], source[src], source[data-src]")
+                .map {
+                    it.absUrl("src").ifBlank { it.attr("src") }
+                        .ifBlank { it.absUrl("data-src") }
+                        .ifBlank { it.attr("data-src") }
+                }
+                .filter { it.isNotBlank() }
+                .forEach(::add)
         }.filter { it.startsWith("http", true) }.distinct()
         if (candidates.isEmpty()) return resolver.resolve(listOf(episodeUrl), referer = baseUrl)
         return resolver.resolve(candidates, referer = episodeUrl).map { it.copy(providerId = id) }
