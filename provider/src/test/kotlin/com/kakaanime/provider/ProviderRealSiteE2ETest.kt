@@ -79,7 +79,7 @@ class ProviderRealSiteE2ETest {
             "otakudesu" -> 1
             "samehadaku" -> 1086
             "kuramanime" -> 989
-            "animedao" -> 1
+            "animedao" -> 1174
             else -> null
         }
         val episode = targetEpisode?.let { target -> episodeList.firstOrNull { it.number == target } }
