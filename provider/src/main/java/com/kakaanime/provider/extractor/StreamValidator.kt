@@ -35,7 +35,7 @@ class StreamValidator {
 
                 val finalUrl = response.request.url.toString()
                 val contentType = response.header("Content-Type").orEmpty().lowercase()
-                val probeBytes = response.peekBody(65_536).bytes()
+                val probeBytes = response.peekBody(PROBE_BYTES).bytes()
                 val probeText = String(probeBytes, StandardCharsets.UTF_8)
                 val detectedType = stream.type.takeIf { it != StreamType.UNKNOWN }
                     ?: detectType(finalUrl, contentType, probeText, probeBytes)
@@ -66,6 +66,6 @@ class StreamValidator {
         bytes.size >= 8 && String(bytes, 4, 4, StandardCharsets.US_ASCII) == "ftyp"
 
     private companion object {
-        const val UA = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36"
+        const val PROBE_BYTES = 16_384\n        const val UA = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36"
     }
 }
