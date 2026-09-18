@@ -13,6 +13,12 @@ dependencies {
     implementation("org.json:json:20240303")
 }
 
+sourceSets {
+    main {
+        kotlin.exclude("**/android/**")
+    }
+}
+
 kotlin {
     jvmToolchain(17)
 }
