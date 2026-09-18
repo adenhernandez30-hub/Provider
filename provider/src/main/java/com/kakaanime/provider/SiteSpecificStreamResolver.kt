@@ -91,7 +91,7 @@ object SiteSpecificStreamResolver {
                 .add("type", server.attr("data-type"))
                 .build()
             val iframe = post(client, ajaxUrl, body, episodeUrl)
-                ?.let { Regex("""src\\s*=\\s*[\"']([^\"']+)[\"']""").find(it)?.groupValues?.getOrNull(1) }
+                ?.let { Regex("""src\s*=\s*["']([^"']+)["']""").find(it)?.groupValues?.getOrNull(1) }
                 ?.let { Jsoup.parse("<iframe src=\"$it\"></iframe>", episodeUrl).selectFirst("iframe")?.absUrl("src").orEmpty() }
                 .orEmpty()
             if (iframe.isBlank()) continue
