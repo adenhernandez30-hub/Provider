@@ -3,6 +3,7 @@ package com.kakaanime.provider
 import com.kakaanime.provider.extractor.BrowserStreamResolver
 import com.kakaanime.provider.extractor.ExtractorRegistry
 import com.kakaanime.provider.extractor.StreamResolver
+import com.kakaanime.provider.extractor.extractors.OtakudesuServerExtractor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -20,6 +21,7 @@ class OtakudesuProvider(browserResolver: BrowserStreamResolver? = null) : AnimeP
     private val client = OkHttpClient.Builder().connectTimeout(10, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).callTimeout(30, TimeUnit.SECONDS).build()
     private val webSource = OtakudesuWebSource()
     private val streamResolver = StreamResolver(ExtractorRegistry(browserResolver = browserResolver), browserResolver = browserResolver)
+    private val siteStreamExtractor = OtakudesuServerExtractor()
     private val baseUrl = "https://qrtzanim.vercel.app/api"
     private val legacyUrl = "https://otakudesu-api-jade.vercel.app/api"
     private val communityUrl = "https://api.otakudesu.natee.my.id/api/v1/anime"
@@ -87,7 +89,7 @@ class OtakudesuProvider(browserResolver: BrowserStreamResolver? = null) : AnimeP
         val episode = getEpisodes(animeId).firstOrNull { it.number == episodeNumber } ?: return emptyList()
         val episodeRef = episode.id.removePrefix("$id:")
         if (episodeRef.startsWith("http", true)) {
-            val siteResolved = SiteSpecificStreamResolver.otakudesu(client, streamResolver, episodeRef)
+            val siteResolved = siteStreamExtractor.extract(episodeRef, episodeRef)
             if (siteResolved.isNotEmpty()) return siteResolved.map { it.copy(providerId = id) }
         }
         if (episodeRef.startsWith("community:")) {
