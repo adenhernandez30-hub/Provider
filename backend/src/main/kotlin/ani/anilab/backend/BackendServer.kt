@@ -8,6 +8,7 @@ import com.kakaanime.provider.ProviderRegistry
 import com.kakaanime.provider.ProviderStream
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import kotlinx.coroutines.runBlocking
 import java.net.InetSocketAddress
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
@@ -24,7 +25,7 @@ class BackendServer(
         check(server == null) { "Backend server is already running" }
 
         val httpServer = HttpServer.create(InetSocketAddress(port), 0)
-        httpServer.createContext("/") { exchange -> handle(exchange) }
+        httpServer.createContext("/") { exchange -> runBlocking { handle(exchange) } }
         httpServer.executor = Executors.newCachedThreadPool()
         httpServer.start()
         server = httpServer
@@ -35,7 +36,7 @@ class BackendServer(
         server = null
     }
 
-    private fun handle(exchange: HttpExchange) {
+    private suspend fun handle(exchange: HttpExchange) {
         try {
             if (exchange.requestMethod != "GET") {
                 respond(exchange, 405, "{\"error\":\"method_not_allowed\"}")
