@@ -86,7 +86,11 @@ class KuramanimeProvider(browserResolver: BrowserStreamResolver? = null) : Anime
         if (authPath.isBlank() || tokenId == ":" || tokenParam.isBlank() || serverParam.isBlank()) return emptyList()
         val headers = mapOf("User-Agent" to UA, "Referer" to episodeUrl, "X-Requested-With" to "XMLHttpRequest", "X-CSRF-TOKEN" to csrf, "X-Fuck-ID" to tokenId, "X-Request-ID" to randomToken(), "X-Request-Index" to "0")
         val hash = requestText(baseUrl + "/" + authPath, episodeUrl, headers)?.trim('"').orEmpty(); if (hash.isBlank()) return emptyList()
-        val servers = doc.select("select#changeServer > option").map { it.attr("value") to it.text().substringBefore(" (") }.filter { it.first in setOf("kuramadrive", "kuramadrive-v2", "filelions", "filemoon", "streamwish", "streamtape", "vidguard") }
+        val supported = setOf("kuramadrive", "kuramadrive-v2", "filelions", "filemoon", "mega", "streamwish", "streamtape", "vidguard")
+        val servers = doc.select("select#changeServer > option")
+            .map { it.attr("value") to it.text().substringBefore(" (") }
+            .filter { it.first in supported }
+            .sortedBy { if (it.first == "kuramadrive" || it.first == "kuramadrive-v2") 0 else 1 }
         for ((server, _) in servers) {
             val playerUrl = episodeUrl + "?" + tokenParam + "=" + encode(hash) + "&" + serverParam + "=" + encode(server)
             val playerDoc = getDocument(playerUrl, episodeUrl) ?: continue
