@@ -6,15 +6,13 @@ package com.kakaanime.provider.extractor
  */
 object DirectStreamFastPath {
     private val mediaPattern = Regex(
-        """(?i)(?:^|[/?&])[^/?&]+\.(?:m3u8|mpd|mp4)(?:$|[?#&])"""
+        """(?i)(?:^|[/?&])[^/?&]+\.(?:m3u8|mpd|mp4|mkv|webm)(?:$|[?#&])"""
     )
 
-    fun candidates(urls: List<String>): List<String> =
-        urls.map(String::trim)
-            .filter(String::isNotBlank)
-            .filter(::isDirectMediaUrl)
-            .distinct()
+    fun candidates(urls: List<String>): List<String> = urls.map(String::trim)
+        .filter(String::isNotBlank)
+        .filter(::isDirectMediaUrl)
+        .distinct()
 
-    fun isDirectMediaUrl(url: String): Boolean =
-        mediaPattern.containsMatchIn(url.trim())
+    fun isDirectMediaUrl(url: String): Boolean = mediaPattern.containsMatchIn(url.trim())
 }

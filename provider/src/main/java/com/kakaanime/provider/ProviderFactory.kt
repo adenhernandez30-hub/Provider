@@ -8,13 +8,11 @@ object ProviderFactory {
             register(OtakudesuProvider(browserResolver))
             register(SamehadakuProvider(browserResolver))
             register(AnimeSailProvider(browserResolver))
-
             register(NativeHtmlProvider("anoboy", "Anoboy", 60, "https://anoboy.xyz", browserResolver))
             register(NativeHtmlProvider("kuronime", "Kuronime", 80, "https://kuronime.net", browserResolver))
             register(NativeHtmlProvider("oploverz", "Oploverz", 200, "https://oploverz.cc", browserResolver))
             register(NativeHtmlProvider("zoronime", "Zoronime", 50, "https://zoronime.com", browserResolver))
             register(AnimeDaoProvider(browserResolver))
-
             register(NativeHtmlProvider("animasu", "Animasu", 30, "https://www.animasu.my.id", browserResolver))
             register(NativeHtmlProvider("animekompi", "AnimeKompi", 70, "https://animekompi.link", browserResolver))
             register(NativeHtmlProvider("doronime", "Doronime", 100, "https://doroni.me", browserResolver))
@@ -30,7 +28,6 @@ object ProviderFactory {
             register(NativeHtmlProvider("anitoki", "Anitoki", 270, "https://anitoki.net", browserResolver))
             register(NativeHtmlProvider("riie", "RiiE", 280, "https://riie.jp", browserResolver))
             register(NativeHtmlProvider("animekuindo", "Animekuindo", 300, "https://animekuindo.live", browserResolver))
-
             register(RemoteSourceProviderV2("animeindo", "AnimeIndo", 40, "animeindo", browserResolver))
             register(RemoteSourceProviderV2("hunter-no-sekai", "Hunter no Sekai", 110, "hunter-no-sekai", browserResolver))
             register(RemoteSourceProviderV2("gomunime", "Gomunime", 120, "gomunime", browserResolver))
