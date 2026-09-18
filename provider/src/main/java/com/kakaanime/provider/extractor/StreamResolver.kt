@@ -16,18 +16,10 @@ class StreamResolver(
     private val browserResolver: BrowserStreamResolver? = null,
     private val maxParallelValidation: Int = DEFAULT_MAX_PARALLEL_VALIDATION,
 ) {
-    init {
-        require(maxParallelValidation > 0) { "maxParallelValidation must be positive" }
-    }
+    init { require(maxParallelValidation > 0) { "maxParallelValidation must be positive" } }
 
-    suspend fun resolve(
-        urls: List<String>,
-        referer: String? = null
-    ): List<ProviderStream> = supervisorScope {
-        val inputUrls = urls.map(String::trim)
-            .filter(String::isNotBlank)
-            .distinct()
-
+    suspend fun resolve(urls: List<String>, referer: String? = null): List<ProviderStream> = supervisorScope {
+        val inputUrls = urls.map(String::trim).filter(String::isNotBlank).distinct()
         if (inputUrls.isEmpty()) return@supervisorScope emptyList()
 
         val directCandidates = DirectStreamFastPath.candidates(inputUrls)
@@ -38,14 +30,9 @@ class StreamResolver(
 
         val extracted = inputUrls.flatMap { url ->
             registry.find(url).map { extractor ->
-                async {
-                    runCatching { extractor.extract(url, referer) }
-                        .getOrDefault(emptyList())
-                }
+                async { runCatching { extractor.extract(url, referer) }.getOrDefault(emptyList()) }
             }.awaitAll().flatten()
-        }
-            .filter { it.url.startsWith("http", ignoreCase = true) }
-            .distinctBy { it.url }
+        }.filter { it.url.startsWith("http", true) }.distinctBy { it.url }
 
         if (extracted.isEmpty()) {
             val direct = validateDirectUrls(inputUrls)
@@ -53,54 +40,33 @@ class StreamResolver(
             return@supervisorScope resolveWithBrowser(inputUrls, referer)
         }
 
-        val validated = validateCandidates(extracted)
+        val validated = boundedValidate(extracted)
         if (validated.isNotEmpty()) return@supervisorScope validated
 
         val direct = validateDirectUrls(inputUrls)
         if (direct.isNotEmpty()) return@supervisorScope direct
-
-        val browserInputs = (extracted.map { it.url } + inputUrls).distinct()
-        resolveWithBrowser(browserInputs, referer)
+        resolveWithBrowser((extracted.map { it.url } + inputUrls).distinct(), referer)
     }
 
-    private suspend fun validateCandidates(candidates: List<ProviderStream>): List<ProviderStream> =
-        boundedValidate(candidates)
+    private suspend fun validateDirectUrls(urls: List<String>): List<ProviderStream> = boundedValidate(urls.map { ProviderStream("", it, type = StreamType.UNKNOWN) })
 
-    private suspend fun validateDirectUrls(urls: List<String>): List<ProviderStream> =
-        boundedValidate(
-            urls.map { url ->
-                ProviderStream(providerId = "", url = url, type = StreamType.UNKNOWN)
-            }
-        )
-
-    private suspend fun boundedValidate(candidates: List<ProviderStream>): List<ProviderStream> =
-        supervisorScope {
-            val semaphore = Semaphore(maxParallelValidation)
-            candidates.map { candidate ->
-                async {
-                    semaphore.withPermit {
-                        runCatching { validator.validate(candidate) }.getOrNull()
-                    }
-                }
-            }.awaitAll()
-                .filterNotNull()
-                .filter { it.type != StreamType.UNKNOWN }
-                .distinctBy { it.url }
-        }
+    private suspend fun boundedValidate(candidates: List<ProviderStream>): List<ProviderStream> = supervisorScope {
+        val semaphore = Semaphore(maxParallelValidation)
+        candidates.map { candidate -> async { semaphore.withPermit { runCatching { validator.validate(candidate) }.getOrNull() } } }
+            .awaitAll().filterNotNull().filter { it.type != StreamType.UNKNOWN }.distinctBy { it.url }
+    }
 
     private suspend fun resolveWithBrowser(urls: List<String>, referer: String?): List<ProviderStream> {
         val resolver = browserResolver ?: return emptyList()
-        return coroutineScope {
-            urls.map { url ->
-                async { runCatching { resolver.resolve(url, referer) }.getOrDefault(emptyList()) }
-            }.awaitAll().flatten()
-                .filter { it.type != StreamType.UNKNOWN }
-                .filter { it.url.startsWith("http", ignoreCase = true) }
-                .distinctBy { it.url }
+        val discovered = coroutineScope {
+            urls.map { url -> async { runCatching { resolver.resolve(url, referer) }.getOrDefault(emptyList()) } }
+                .awaitAll().flatten().filter { it.url.startsWith("http", true) }.distinctBy { it.url }
         }
+        // Browser/WebView discovery is only a candidate-producing stage. Do not
+        // expose its result as playable until the same network validator confirms
+        // the final URL and media type.
+        return boundedValidate(discovered)
     }
 
-    companion object {
-        const val DEFAULT_MAX_PARALLEL_VALIDATION: Int = 4
-    }
+    companion object { const val DEFAULT_MAX_PARALLEL_VALIDATION: Int = 4 }
 }
