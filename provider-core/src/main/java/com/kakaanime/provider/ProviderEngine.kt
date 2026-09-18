@@ -1,11 +1,18 @@
 package com.kakaanime.provider
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+
 class ProviderEngine(
     private val registry: ProviderRegistry,
     private val healthMonitor: ProviderHealthMonitor = ProviderHealthMonitor(),
 ) {
     private val router = SmartProviderRouter(registry, healthMonitor)
     private val race = RaceStreamEngine(registry, healthMonitor)
+    private val cacheScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val episodeCache = ProviderEpisodeCache(cacheScope)
+    private val streamCache = ProviderStreamCache(cacheScope, healthMonitor)
 
     fun healthMonitor(): ProviderHealthMonitor = healthMonitor
 
@@ -13,16 +20,20 @@ class ProviderEngine(
 
     suspend fun getAnime(animeId: String): ProviderAnime? = router.getAnime(animeId)
 
-    suspend fun getEpisodes(animeId: String): List<ProviderEpisode> = router.getEpisodes(animeId)
+    suspend fun getEpisodes(animeId: String): List<ProviderEpisode> =
+        episodeCache.getOrLoad(animeId) { router.getEpisodes(animeId) }
 
     suspend fun getEpisodeStreams(animeId: String, episodeNumber: Int): NormalizedEpisodeStream {
-        val raw = router.getStreams(animeId, episodeNumber)
-        val priorities = registry.all().associate { it.id to it.priority }
-        val deduplicated = ProviderStreamDeduplicator.deduplicate(raw, priorities)
+        val streams = streamCache.getOrLoad(animeId, episodeNumber) {
+            val raw = router.getStreams(animeId, episodeNumber)
+            val priorities = registry.all().associate { it.id to it.priority }
+            val deduplicated = ProviderStreamDeduplicator.deduplicate(raw, priorities)
+            StreamNormalizer.normalize(deduplicated)
+        }
         return NormalizedEpisodeStream(
             animeId = animeId,
             episodeNumber = episodeNumber,
-            streams = StreamNormalizer.normalize(deduplicated)
+            streams = streams
         )
     }
 
