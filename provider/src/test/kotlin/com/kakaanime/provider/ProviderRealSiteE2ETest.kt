@@ -75,7 +75,15 @@ class ProviderRealSiteE2ETest {
             else -> "PASS"
         }
         if (episodeList.isEmpty()) return result
-        val episode = episodeList.filter { it.number > 0 }.minByOrNull { it.number }
+        val targetEpisode = when (provider.id) {
+            "otakudesu" -> 1
+            "samehadaku" -> 1086
+            "kuramanime" -> 989
+            "animedao" -> 1
+            else -> null
+        }
+        val episode = targetEpisode?.let { target -> episodeList.firstOrNull { it.number == target } }
+            ?: episodeList.filter { it.number > 0 }.minByOrNull { it.number }
         if (episode == null) {
             result.stream = "SKIP"
             result.details += "STREAM SKIP: no positive episode number was returned"
