@@ -46,7 +46,7 @@ class SamehadakuEpisodeExtractor(browserResolver: BrowserStreamResolver? = null)
         }
         page.select("#server > ul > li > div").forEach { server ->
             val post = server.attr("data-post").trim(); val nume = server.attr("data-nume").trim(); val type = server.attr("data-type").trim()
-            if (post.isBlank() || nume.isBlank() || type.isBlank()) return@forEach
+            if (post.isBlank() || nume.isBlank()) return@forEach
             requestPlayerAjax(url, post, nume, type)?.let { embed ->
                 discovered.putIfAbsent(embed, DiscoveredLink(embed, server.selectFirst("span")?.text()?.trim()))
             }
@@ -114,12 +114,22 @@ class SamehadakuEpisodeExtractor(browserResolver: BrowserStreamResolver? = null)
     }.getOrNull()
 
     private fun extractUrl(value: String, baseUrl: String): String? {
-        val document = Jsoup.parse(value, baseUrl)
+        val raw = value.trim()
+        val payload = runCatching { org.json.JSONObject(raw).optString("data") }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?: raw
+        val document = Jsoup.parse(payload, baseUrl)
         document.selectFirst("iframe[src], iframe[data-src]")?.let { iframe ->
             val href = iframe.absUrl("src").ifBlank { iframe.attr("src") }.ifBlank { iframe.attr("data-src") }
             if (href.isNotBlank()) return href.trim()
         }
-        return Regex("(?:src|file|source|url)\\s*[:=]\\s*[\\\"']([^\\\"']+)").find(value)?.groupValues?.getOrNull(1)?.trim()
+        document.selectFirst("video source[src], video[src], source[src]")?.let { media ->
+            val href = media.absUrl("src").ifBlank { media.attr("src") }
+            if (href.isNotBlank()) return href.trim()
+        }
+        return Regex("(?:src|file|source|url)\\s*[:=]\\s*[\\\"']([^\\\"']+)").find(payload)?.groupValues?.getOrNull(1)?.trim()
+            ?: Regex("""https?://[^\\s\\\"'<>]+""").find(payload)?.value
     }
 
     private fun extractDataPageUrl(value: String): String? {
