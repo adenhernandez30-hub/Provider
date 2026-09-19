@@ -25,6 +25,23 @@ class AniLabExtractorPipelineTest {
     }
 
     @Test
+    fun registry_rejectsDuplicateExtractorIds() {
+        val first = FakeExtractor("same", canHandle = true)
+        val second = FakeExtractor("same", canHandle = true)
+
+        kotlin.test.assertFailsWith<IllegalArgumentException> {
+            AniLabExtractorRegistry(listOf(first, second))
+        }
+    }
+
+    @Test
+    fun registry_rejectsBlankExtractorId() {
+        kotlin.test.assertFailsWith<IllegalArgumentException> {
+            AniLabExtractorRegistry(listOf(FakeExtractor(" ", canHandle = true)))
+        }
+    }
+
+    @Test
     fun registry_noCompatibleExtractor_returnsFailure() = runBlocking {
         val extractor = FakeExtractor("ignored", canHandle = false)
 
