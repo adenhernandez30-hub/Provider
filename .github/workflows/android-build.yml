@@ -2,7 +2,7 @@ name: Android Build
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, "rewrite/provider-v2" ]
   workflow_dispatch:
 
 jobs:
@@ -24,4 +24,4 @@ jobs:
           gradle-version: '8.13'
 
       - name: Build provider
-        run: gradle :provider:assembleDebug --stacktrace
+        run: gradle :provider:assembleDebug :provider-v2:assembleDebug --stacktrace
