@@ -100,13 +100,15 @@ class AniLabStreamVerifier(
     private fun isCompatible(declared: AniLabStreamType, detected: AniLabStreamType): Boolean =
         declared == AniLabStreamType.UNKNOWN || detected == declared
 
-    private fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(6, TimeUnit.SECONDS)
-        .readTimeout(8, TimeUnit.SECONDS)
-        .callTimeout(12, TimeUnit.SECONDS)
-        .followRedirects(true)
-        .followSslRedirects(true)
-        .build()
+    companion object {
+        private fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
+            .connectTimeout(6, TimeUnit.SECONDS)
+            .readTimeout(8, TimeUnit.SECONDS)
+            .callTimeout(12, TimeUnit.SECONDS)
+            .followRedirects(true)
+            .followSslRedirects(true)
+            .build()
+    }
 }
 
 sealed interface AniLabVerificationResult {
