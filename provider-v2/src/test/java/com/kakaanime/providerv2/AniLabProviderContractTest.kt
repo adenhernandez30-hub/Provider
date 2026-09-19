@@ -80,6 +80,69 @@ class AniLabProviderContractTest {
         assertTrue(routed.failures.single().message.orEmpty().contains("site down"))
     }
 
+
+    @Test
+    fun auto_skipsOpenProviderAndContinues() = runBlocking {
+        val now = longArrayOf(0L)
+        val breaker = AniLabCircuitBreaker(
+            failureThreshold = 1,
+            cooldownMillis = 1_000L,
+            nowMillis = { now[0] },
+        )
+        breaker.recordFailure("broken")
+
+        val broken = FakeProvider("broken", listOf(candidate("broken", "server-a")))
+        val healthy = FakeProvider("healthy", listOf(candidate("healthy", "server-b")))
+
+        val result = AniLabRouter(listOf(broken, healthy), breaker).loadLinks(
+            episodeUrl = "episode",
+            mode = AniLabRoutingMode.AUTO,
+        )
+
+        val routed = assertIs<AniLabRouteResult.Candidates>(result)
+        assertEquals("healthy", routed.providerId)
+        assertEquals(null, broken.lastEpisodeUrl)
+        assertEquals("episode", healthy.lastEpisodeUrl)
+        assertEquals(AniLabFailureType.PROVIDER_UNAVAILABLE, routed.failures.single().type)
+    }
+
+    @Test
+    fun manual_openProviderDoesNotCallProvider() = runBlocking {
+        val breaker = AniLabCircuitBreaker(failureThreshold = 1, cooldownMillis = 1_000L)
+        breaker.recordFailure("selected")
+        val selected = FakeProvider("selected", listOf(candidate("selected", "server-a")))
+
+        val result = AniLabRouter(listOf(selected), breaker).loadLinks(
+            episodeUrl = "episode",
+            mode = AniLabRoutingMode.MANUAL,
+            selectedProviderId = "selected",
+        )
+
+        val failure = assertIs<AniLabRouteResult.Failure>(result)
+        assertEquals(AniLabFailureType.PROVIDER_UNAVAILABLE, failure.primary.type)
+        assertEquals(null, selected.lastEpisodeUrl)
+    }
+
+    @Test
+    fun router_rethrowsCancellation() = runBlocking {
+        val provider = object : FakeProvider("cancel") {
+            override suspend fun loadLinks(episodeUrl: String): List<AniLabStreamCandidate> {
+                throw kotlinx.coroutines.CancellationException("cancelled")
+            }
+        }
+
+        var rethrown = false
+        try {
+            AniLabRouter(listOf(provider)).loadLinks(
+                episodeUrl = "episode",
+                mode = AniLabRoutingMode.AUTO,
+            )
+        } catch (t: kotlinx.coroutines.CancellationException) {
+            rethrown = true
+        }
+        assertTrue(rethrown)
+    }
+
     private fun candidate(providerId: String, serverId: String) = AniLabStreamCandidate(
         providerId = providerId,
         serverId = serverId,
@@ -87,7 +150,7 @@ class AniLabProviderContractTest {
         type = AniLabStreamType.HLS,
     )
 
-    private class FakeProvider(
+    private open class FakeProvider(
         override val id: String,
         private val candidates: List<AniLabStreamCandidate> = emptyList(),
         private val failure: Throwable? = null,
