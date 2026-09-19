@@ -85,16 +85,21 @@ class KuramanimeProvider(browserResolver: BrowserStreamResolver? = null) : Anime
         if (episodeNumber < 1) return emptyList()
         val animeUrl = normalizeAnimeUrl(animeId); val episodeUrl = animeUrl + "/episode/" + episodeNumber
         val doc = getDocument(episodeUrl, animeUrl) ?: return emptyList()
+        val pageCandidates = extractEpisodeCandidates(doc)
+        suspend fun fallbackStreams(): List<ProviderStream> {
+            val candidates = (listOf(episodeUrl) + pageCandidates).distinct()
+            return resolver.resolve(candidates, referer = episodeUrl).map { it.copy(providerId = id) }
+        }
         val csrf = doc.selectFirst("meta[name=csrf-token]")?.attr("content").orEmpty().ifBlank { doc.selectFirst("meta[name=csrf-token]")?.attr("csrf-token").orEmpty() }
         val scriptName = doc.selectFirst("[data-kps]")?.attr("data-kps").orEmpty()
-        if (csrf.isBlank() || scriptName.isBlank()) return resolver.resolve(listOf(episodeUrl), referer = animeUrl)
-        val env = getScriptEnv(scriptName) ?: return emptyList()
-        val authPath = env["MIX_PREFIX_AUTH_ROUTE_PARAM"].orEmpty() + env["MIX_AUTH_ROUTE_PARAM"].orEmpty()
+        if (csrf.isBlank() || scriptName.isBlank()) return fallbackStreams()
+        val env = getScriptEnv(scriptName) ?: return fallbackStreams()
+        val authPath = buildAuthPath(env)
         val tokenId = env["MIX_AUTH_KEY"].orEmpty() + ":" + env["MIX_AUTH_TOKEN"].orEmpty()
         val tokenParam = env["MIX_PAGE_TOKEN_KEY"].orEmpty(); val serverParam = env["MIX_STREAM_SERVER_KEY"].orEmpty()
-        if (authPath.isBlank() || tokenId == ":" || tokenParam.isBlank() || serverParam.isBlank()) return emptyList()
+        if (authPath.isBlank() || tokenId == ":" || tokenParam.isBlank() || serverParam.isBlank()) return fallbackStreams()
         val headers = mapOf("User-Agent" to UA, "Referer" to episodeUrl, "X-Requested-With" to "XMLHttpRequest", "X-CSRF-TOKEN" to csrf, "X-Fuck-ID" to tokenId, "X-Request-ID" to randomToken(), "X-Request-Index" to "0")
-        val hash = requestText(baseUrl + "/" + authPath, episodeUrl, headers)?.trim('"').orEmpty(); if (hash.isBlank()) return emptyList()
+        val hash = requestText(baseUrl + "/" + authPath, episodeUrl, headers)?.trim('"').orEmpty(); if (hash.isBlank()) return fallbackStreams()
         val supported = setOf("kuramadrive", "kuramadrive-v2", "filelions", "filemoon", "mega", "streamwish", "streamtape", "vidguard")
         val servers = doc.select("select#changeServer > option")
             .map { it.attr("value") to it.text().substringBefore(" (") }
@@ -104,17 +109,39 @@ class KuramanimeProvider(browserResolver: BrowserStreamResolver? = null) : Anime
             val playerUrl = episodeUrl + "?" + tokenParam + "=" + encode(hash) + "&" + serverParam + "=" + encode(server)
             val playerDoc = getDocument(playerUrl, episodeUrl) ?: continue
             val iframe = playerDoc.selectFirst("div.video-content iframe")?.absUrl("src").orEmpty()
-            val direct = playerDoc.select("video#player > source[src]").map { it.absUrl("src") }.filter { it.isNotBlank() }
+            val direct = extractEpisodeCandidates(playerDoc)
             val candidates = (listOf(iframe) + direct).filter { it.startsWith("http", true) }.distinct(); if (candidates.isEmpty()) continue
             val streams = resolver.resolve(candidates, referer = episodeUrl); if (streams.isNotEmpty()) return streams.map { it.copy(providerId = id) }
         }
-        return emptyList()
+        return fallbackStreams()
     }
 
     private suspend fun getScriptEnv(scriptName: String): Map<String, String>? {
-        val js = requestText(baseUrl + "/assets/js/" + scriptName + ".js", baseUrl) ?: return null
+        val normalized = normalizeScriptAsset(scriptName) ?: return null
+        val js = requestText(normalized, baseUrl) ?: return null
         val block = Regex("""window\.process\s*=\s*\{[\s\S]*?env:\s*\{([\s\S]*?)\}[\s\S]*?\}""").find(js)?.groupValues?.getOrNull(1) ?: return null
         return Regex("""(\w+):\s*['"]([^'"]+)['"]""").findAll(block).associate { it.groupValues[1] to it.groupValues[2] }
+    }
+    internal fun buildAuthPath(env: Map<String, String>): String = listOf(
+        env["MIX_PREFIX_AUTH_ROUTE_PARAM"].orEmpty().trim('/'),
+        env["MIX_AUTH_ROUTE_PARAM"].orEmpty().trim('/')
+    ).filter { it.isNotBlank() }.joinToString("/")
+
+    internal fun extractEpisodeCandidates(doc: Document): List<String> = buildList {
+        doc.select("div.video-content iframe[src], iframe[src], iframe[data-src]").forEach {
+            add(it.absUrl("src").ifBlank { it.attr("src") }.ifBlank { it.absUrl("data-src") }.ifBlank { it.attr("data-src") })
+        }
+        doc.select("video#player > source[src], video source[src], video source[data-src], video[src], video[data-src], source[src], source[data-src]").forEach {
+            add(it.absUrl("src").ifBlank { it.attr("src") }.ifBlank { it.absUrl("data-src") }.ifBlank { it.attr("data-src") })
+        }
+    }.filter { it.startsWith("http", true) }.distinct()
+
+    private fun normalizeScriptAsset(scriptName: String): String? {
+        val raw = scriptName.trim()
+        if (raw.isBlank()) return null
+        if (raw.startsWith("http", true)) return raw
+        val withExt = if (raw.contains(".js")) raw else "$raw.js"
+        return if (withExt.startsWith("/")) "$baseUrl$withExt" else "$baseUrl/assets/js/$withExt"
     }
     private suspend fun getDocument(url: String, referer: String): Document? = withContext(Dispatchers.IO) {
         runCatching { val request = Request.Builder().url(url).header("User-Agent", UA).header("Accept", "text/html,application/xhtml+xml").header("Referer", referer).build()

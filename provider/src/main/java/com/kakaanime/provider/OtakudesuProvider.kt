@@ -88,12 +88,15 @@ class OtakudesuProvider(browserResolver: BrowserStreamResolver? = null) : AnimeP
     override suspend fun getStreams(animeId: String, episodeNumber: Int): List<ProviderStream> {
         val episode = getEpisodes(animeId).firstOrNull { it.number == episodeNumber } ?: return emptyList()
         val episodeRef = episode.id.removePrefix("$id:")
-        if (episodeRef.startsWith("http", true)) {
-            val siteResolved = siteStreamExtractor.extract(episodeRef, episodeRef)
+        val slug = normalizeAnimeSlug(animeId)
+        val playbackRef = selectPlaybackRef(episodeRef, findWebEpisodeUrl(slug, episodeNumber))
+
+        if (playbackRef.startsWith("http", true)) {
+            val siteResolved = siteStreamExtractor.extract(playbackRef, playbackRef)
             if (siteResolved.isNotEmpty()) return siteResolved.map { it.copy(providerId = id) }
         }
-        if (episodeRef.startsWith("community:")) {
-            val episodeSlug = episodeRef.removePrefix("community:").trim('/')
+        if (playbackRef.startsWith("community:")) {
+            val episodeSlug = playbackRef.removePrefix("community:").trim('/')
             val data = requestJson("$communityUrl/episode/${encodePath(episodeSlug)}")?.optJSONObject("data")
             if (data != null) {
                 val candidates = buildList<String> {
@@ -110,6 +113,19 @@ class OtakudesuProvider(browserResolver: BrowserStreamResolver? = null) : AnimeP
             }
         }
         return emptyList()
+    }
+
+    internal suspend fun findWebEpisodeUrl(slug: String, episodeNumber: Int): String? {
+        webSource.getAnime(slug)?.let { anime ->
+            webSource.getEpisodes(anime).firstOrNull { it.number == episodeNumber }?.url?.let { return it }
+        }
+        return webSource.getEpisodes(slug).firstOrNull { it.number == episodeNumber }?.url
+    }
+
+    internal fun selectPlaybackRef(episodeRef: String, webEpisodeUrl: String?): String = when {
+        episodeRef.startsWith("http", true) || episodeRef.startsWith("community:") -> episodeRef
+        !webEpisodeUrl.isNullOrBlank() -> webEpisodeUrl
+        else -> episodeRef
     }
 
     private suspend fun webSearch(query: String): List<ProviderAnime> = withContext(Dispatchers.IO) { runCatching { val results = linkedMapOf<String, ProviderAnime>(); val encoded = encode(query); val sources = listOf("https://otakudesu.blog", "https://otakudesu.ro", "https://otakudesu.cloud", "https://otakudesu.fit"); for (base in sources) { val url = "$base/?s=$encoded&post_type=anime"; val request = Request.Builder().url(url).header("User-Agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36").header("Accept-Language", "id-ID,id;q=0.9,en-US;q=0.8").build(); client.newCall(request).execute().use { response -> if (!response.isSuccessful) return@use; val html = response.body?.string().orEmpty(); val pattern = Regex("<a[^>]+href=[\\\"']([^\\\"']+)[\\\"'][^>]*>(.*?)</a>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)); for (match in pattern.findAll(html)) { val href = decodeHtml(match.groupValues[1].trim()); val title = match.groupValues[2].replace(Regex("<[^>]+>"), " ").replace(Regex("\\s+"), " ").trim(); if (title.isBlank() || !href.contains("/anime/", true) && !href.contains("/series/", true)) continue; val slug = normalizeAnimeSlug(URI(base).resolve(href).toString()); if (slug.isBlank()) continue; results.putIfAbsent(slug.lowercase(), ProviderAnime("$id:$slug", title, id)) } }; if (results.isNotEmpty()) break }; results.values.toList() }.getOrDefault(emptyList()) }
