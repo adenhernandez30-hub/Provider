@@ -3,7 +3,7 @@ package com.kakaanime.provider
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Test
-import kotlin.test.assertTrue
+import org.junit.Assert.assertTrue
 
 class ProviderRealSiteE2ETest {
 
