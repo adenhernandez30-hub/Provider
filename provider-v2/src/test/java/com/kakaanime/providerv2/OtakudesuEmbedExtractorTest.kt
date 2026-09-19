@@ -14,19 +14,20 @@ class OtakudesuEmbedExtractorTest {
     @Test
     fun extractor_resolvesDirectMediaAndNestedEmbed() = runBlocking {
         val server = MockWebServer()
-        server.enqueue(
-            MockResponse().setBody(
-                "<iframe src=\"http://host.test/embed\"></iframe>" +
-                    "<video src=\"http://cdn.test/inline.m3u8?token=1\"></video>"
-            ),
-        )
-        server.enqueue(
-            MockResponse().setBody(
-                "<script>file = \"http://cdn.test/nested.mp4?token=2\"</script>"
-            ),
-        )
         server.start()
         try {
+            server.enqueue(
+                MockResponse().setBody(
+                    "<iframe src=\"/embed\"></iframe>" +
+                        "<video src=\"/inline.m3u8?token=1\"></video>"
+                ),
+            )
+            server.enqueue(
+                MockResponse().setBody(
+                    "<script>file = \"/nested.mp4?token=2\"</script>"
+                ),
+            )
+
             val extractor = OtakudesuEmbedExtractor(
                 acceptedHosts = setOf(server.url("/").host),
                 client = OkHttpClient.Builder()
@@ -41,6 +42,7 @@ class OtakudesuEmbedExtractorTest {
                 AniLabExtractionContext(),
             )
 
+            assertTrue(result.any { it.url == server.url("/inline.m3u8?token=1").toString() })
             assertEquals(AniLabStreamType.HLS, result.first { it.url.contains("inline.m3u8") }.type)
             assertEquals(AniLabStreamType.MP4, result.first { it.url.contains("nested.mp4") }.type)
         } finally {
@@ -53,7 +55,7 @@ class OtakudesuEmbedExtractorTest {
         val server = MockWebServer()
         server.enqueue(
             MockResponse().setBody(
-                "<div id=\"app\" data-page=\"{&quot;props&quot;:{&quot;url&quot;:&quot;http://cdn.test/file.mp4?token=3&quot;}}\"></div>"
+                "<div id=\"app\" data-page=\"{&quot;props&quot;:{&quot;url&quot;:&quot;/file.mp4?token=3&quot;}}\"></div>"
             ),
         )
         server.start()
@@ -67,7 +69,7 @@ class OtakudesuEmbedExtractorTest {
                 AniLabExtractionContext(),
             )
 
-            assertTrue(result.any { it.url.contains("file.mp4?token=3") })
+            assertTrue(result.any { it.url == server.url("/file.mp4?token=3").toString() })
         } finally {
             server.shutdown()
         }
