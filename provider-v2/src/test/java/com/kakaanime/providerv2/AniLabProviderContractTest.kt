@@ -3,6 +3,7 @@ package com.kakaanime.providerv2
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import java.net.SocketTimeoutException
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -83,6 +84,19 @@ class AniLabProviderContractTest {
     }
 
 
+
+    @Test
+    fun router_socketTimeout_isClassifiedAsTimeout() = runBlocking {
+        val broken = FakeProvider("broken", failure = SocketTimeoutException("provider timed out"))
+
+        val result = AniLabRouter(listOf(broken)).loadLinks(
+            episodeUrl = "episode",
+            mode = AniLabRoutingMode.AUTO,
+        )
+
+        val failure = assertIs<AniLabRouteResult.Failure>(result)
+        assertEquals(AniLabFailureType.TIMEOUT, failure.primary.type)
+    }
 
     @Test
     fun router_rejectsDuplicateProviderIds() {
