@@ -10,8 +10,8 @@ import java.util.concurrent.TimeUnit
  * anime sites. It intentionally only extracts media/embed URLs; host-specific
  * token/signature flows belong in dedicated extractors.
  */
-class AniLabGenericEmbedExtractor(
-    private val client: OkHttpClient = defaultClient(),
+private fun defaultGenericClient(): OkHttpClient = OkHttpClient.Builder()\n    .followRedirects(true)\n    .followSslRedirects(true)\n    .connectTimeout(8, TimeUnit.SECONDS)\n    .readTimeout(15, TimeUnit.SECONDS)\n    .callTimeout(20, TimeUnit.SECONDS)\n    .build()\n\nclass AniLabGenericEmbedExtractor(
+    private val client: OkHttpClient = defaultGenericClient(),
 ) : AniLabExtractor {
 
     override val id: String = "generic-embed"
@@ -118,7 +118,7 @@ class AniLabGenericEmbedExtractor(
 
     private fun decodeHtml(value: String): String =
         value.replace("&amp;", "&")
-            .replace("&quot;", """)
+            .replace("&quot;", "\"")
             .replace("&#39;", "'")
             .replace("&#x27;", "'")
             .replace("&lt;", "<")
