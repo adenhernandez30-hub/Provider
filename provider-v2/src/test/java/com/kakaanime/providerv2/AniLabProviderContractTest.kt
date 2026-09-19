@@ -18,7 +18,8 @@ class AniLabProviderContractTest {
             mode = AniLabRoutingMode.AUTO,
         )
 
-        val routed = assertIs<AniLabRouteResult.Candidates>(result)
+        assertTrue(result is AniLabRouteResult.Candidates, "Expected candidates but got $result")
+        val routed = result as AniLabRouteResult.Candidates
         assertEquals("second", routed.providerId)
         assertEquals("server-b", routed.candidates.single().serverId)
         assertEquals(AniLabFailureType.SERVER_EMPTY, routed.failures.single().type)
