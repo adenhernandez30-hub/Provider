@@ -289,4 +289,11 @@ class AniLabProviderContractTest {
             return candidates
         }
     }
+    private class UrlExtractor(private vararg val urls: String) : AniLabExtractor {
+        override val id = "url"
+        override fun canHandle(url: String) = url in urls
+        override suspend fun extract(url: String, context: AniLabExtractionContext) =
+            listOf(AniLabStreamCandidate("", "", url, AniLabStreamType.HLS))
+    }
+
 }
