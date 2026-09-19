@@ -5,6 +5,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
+import java.net.SocketTimeoutException
 
 class AniLabExtractorPipelineTest {
 
@@ -33,6 +34,25 @@ class AniLabExtractorPipelineTest {
         assertEquals(AniLabFailureType.EXTRACTOR_FAILED, failure.failure.type)
         assertTrue(failure.failure.message.orEmpty().contains("No compatible extractor"))
         assertTrue(extractor.calls.isEmpty())
+    }
+
+    @Test
+    fun registry_socketTimeout_isClassifiedAsTimeout() = runBlocking {
+        val extractor = object : AniLabExtractor {
+            override val id = "timeout"
+            override fun canHandle(url: String) = true
+            override suspend fun extract(url: String, context: AniLabExtractionContext): List<AniLabStreamCandidate> {
+                throw SocketTimeoutException("extractor timed out")
+            }
+        }
+
+        val result = AniLabExtractorRegistry(listOf(extractor)).extract(
+            "https://example.test/video",
+            providerId = "provider-1",
+        )
+
+        val failure = assertIs<AniLabExtractionResult.Failure>(result)
+        assertEquals(AniLabFailureType.TIMEOUT, failure.failure.type)
     }
 
     @Test
