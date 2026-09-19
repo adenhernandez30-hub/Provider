@@ -104,6 +104,45 @@ class OtakudesuEpisodeExtractorTest {
     }
 
     @Test
+    fun extractor_acceptsFallbackActionAndPlainNonce() = runBlocking {
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setBody(
+            "<script>" +
+                "window.__x__nonce = true;" +
+                "data:{action:\"aabbccdd\"};" +
+                "action: \"00112233445566778899aabbccddeeff\";" +
+                "</script>" +
+                "<div data-content=\"eyJpZCI6IjEyMyIsImkiOiJzZXJ2ZXItYSIsInEiOiI3MjBwIn0=\"></div>"
+        ))
+        server.enqueue(MockResponse().setBody(
+            "{\"data\":\"plainnonce123\"}"
+        ))
+        server.enqueue(MockResponse().setBody(
+            "{\"data\":\"PGlmcmFtZSBzcmM9J2h0dHA6Ly9leGFtcGxlLnRlc3QvZW1iZWQnPg==\"}"
+        ))
+        server.start()
+        try {
+            val extractor = OtakudesuEpisodeExtractor(
+                acceptedHosts = setOf(server.hostName),
+                client = OkHttpClient.Builder()
+                    .connectTimeout(2, TimeUnit.SECONDS)
+                    .readTimeout(2, TimeUnit.SECONDS)
+                    .callTimeout(5, TimeUnit.SECONDS)
+                    .build(),
+            )
+
+            val result = extractor.extract(
+                server.url("/episode/naruto-episode-1/").toString(),
+                AniLabExtractionContext(),
+            )
+
+            assertTrue(result.any { it.url.contains("/embed") })
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
     fun extractor_rejectsNonEpisodeUrl() {
         val extractor = OtakudesuEpisodeExtractor(acceptedHosts = setOf("example.test"))
         assertEquals(false, extractor.canHandle("https://example.test/anime/naruto/"))
