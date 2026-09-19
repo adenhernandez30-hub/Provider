@@ -2,6 +2,7 @@ package com.kakaanime.providerv2
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
+import java.net.SocketTimeoutException
 
 /** Ordered extractor registry with fallback across compatible extractors. */
 class AniLabExtractorRegistry(
@@ -48,7 +49,7 @@ class AniLabExtractorRegistry(
             } catch (t: Throwable) {
                 failures += AniLabFailure(
                     providerId,
-                    if (t is TimeoutCancellationException) AniLabFailureType.TIMEOUT
+                    if (t is TimeoutCancellationException || t is SocketTimeoutException) AniLabFailureType.TIMEOUT
                     else AniLabFailureType.EXTRACTOR_FAILED,
                     t.message,
                     t,
