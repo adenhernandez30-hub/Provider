@@ -75,6 +75,50 @@ class AniLabExtractorPipelineTest {
         assertTrue(extractor.calls.isEmpty())
     }
 
+
+    @Test
+    fun registry_rethrowsCancellation() = runBlocking {
+        val extractor = object : AniLabExtractor {
+            override val id = "cancel"
+            override fun canHandle(url: String) = true
+            override suspend fun extract(
+                url: String,
+                context: AniLabExtractionContext,
+            ): List<AniLabStreamCandidate> {
+                throw kotlinx.coroutines.CancellationException("cancelled")
+            }
+        }
+
+        var rethrown = false
+        try {
+            AniLabExtractorRegistry(listOf(extractor)).extract(
+                "https://example.test/video",
+                providerId = "provider-1",
+            )
+        } catch (t: kotlinx.coroutines.CancellationException) {
+            rethrown = true
+        }
+        assertTrue(rethrown)
+    }
+
+    @Test
+    fun candidatePipeline_inheritsTransportMetadataIntoExtractedCandidate() = runBlocking {
+        val extractor = CapturingExtractor()
+        val pipeline = AniLabCandidatePipeline(AniLabExtractorRegistry(listOf(extractor)))
+        val source = candidate("source").copy(
+            referer = "https://site.test/episode",
+            headers = mapOf("X-Test" to "yes"),
+            cookies = mapOf("sid" to "abc"),
+        )
+
+        val result = pipeline.resolve("provider-1", listOf(source))
+        val resolved = assertIs<AniLabPipelineResult.Candidates>(result).candidates.single()
+
+        assertEquals(source.referer, resolved.referer)
+        assertEquals("yes", resolved.headers["X-Test"])
+        assertEquals("abc", resolved.cookies["sid"])
+    }
+
     private fun candidate(id: String) = AniLabStreamCandidate(
         providerId = "source-provider",
         serverId = id,
