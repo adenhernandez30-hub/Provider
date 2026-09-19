@@ -15,4 +15,4 @@ workflows:
       - name: Run batch real-site E2E
         script: |
           chmod +x ./gradlew
-          ./gradlew :provider:test --tests com.kakaanime.provider.ProviderRealSiteE2ETest --stacktrace
+          ./gradlew :provider:testDebugUnitTest --tests com.kakaanime.provider.ProviderRealSiteE2ETest --stacktrace
