@@ -9,7 +9,7 @@ import okhttp3.Request
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
 
-class StreamValidator {
+open class StreamValidator {
     private val client = OkHttpClient.Builder()
         .followRedirects(true)
         .followSslRedirects(true)
@@ -18,7 +18,7 @@ class StreamValidator {
         .callTimeout(12, TimeUnit.SECONDS)
         .build()
 
-    suspend fun validate(stream: ProviderStream): ProviderStream? = withContext(Dispatchers.IO) {
+    open suspend fun validate(stream: ProviderStream): ProviderStream? = withContext(Dispatchers.IO) {
         runCatching {
             val request = Request.Builder()
                 .url(stream.url)
@@ -40,10 +40,11 @@ class StreamValidator {
                 val detectedType = stream.type.takeIf { it != StreamType.UNKNOWN }
                     ?: detectType(finalUrl, contentType, probeText, probeBytes)
 
+                val cleanFinalUrl = finalUrl.substringBefore('?').substringBefore('#').lowercase()
                 val valid = when (detectedType) {
-                    StreamType.HLS -> probeText.contains("#EXTM3U", true) || contentType.contains("mpegurl") || contentType.contains("m3u8")
-                    StreamType.DASH -> probeText.contains("<MPD", true) || contentType.contains("dash") || contentType.contains("mpd")
-                    StreamType.MP4 -> contentType.contains("video") || contentType.contains("octet-stream") || hasMp4Signature(probeBytes) || response.code == 206 && stream.type == StreamType.MP4
+                    StreamType.HLS -> probeText.contains("#EXTM3U", true) || contentType.contains("mpegurl") || contentType.contains("m3u8") || cleanFinalUrl.endsWith(".m3u8")
+                    StreamType.DASH -> probeText.contains("<MPD", true) || contentType.contains("dash") || contentType.contains("mpd") || cleanFinalUrl.endsWith(".mpd")
+                    StreamType.MP4 -> contentType.contains("video") || contentType.contains("octet-stream") || hasMp4Signature(probeBytes) || response.code == 206
                     StreamType.UNKNOWN -> false
                 }
                 if (!valid) return@runCatching null

@@ -3,10 +3,10 @@ package com.kakaanime.provider
 object StreamNormalizer {
     fun normalize(streams: List<ProviderStream>): List<NormalizedStream> = streams
         .mapNotNull { stream ->
-            if (stream.url.isBlank()) return@mapNotNull null
+            val normalizedUrl = normalizeUrl(stream.url) ?: return@mapNotNull null
             NormalizedStream(
                 providerId = stream.providerId,
-                url = stream.url,
+                url = normalizedUrl,
                 quality = detectQuality(stream.quality),
                 type = detectType(stream),
                 language = stream.language,
@@ -30,7 +30,7 @@ object StreamNormalizer {
     }
 
     private fun detectType(stream: ProviderStream): StreamType {
-        val url = stream.url.lowercase()
+        val url = stream.url.trim().lowercase()
         return when {
             stream.type != StreamType.UNKNOWN -> stream.type
             ".m3u8" in url -> StreamType.HLS
@@ -41,4 +41,14 @@ object StreamNormalizer {
     }
 
     private fun detectPremium(quality: String?): Boolean = quality?.lowercase()?.contains("1080") == true
+
+    private fun normalizeUrl(url: String): String? {
+        val trimmed = url.trim()
+        if (trimmed.isBlank()) return null
+        return when {
+            trimmed.startsWith("//") -> "https:$trimmed"
+            trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true) -> trimmed
+            else -> null
+        }
+    }
 }
