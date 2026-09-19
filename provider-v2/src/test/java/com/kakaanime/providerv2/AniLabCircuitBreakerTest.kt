@@ -46,6 +46,36 @@ class AniLabCircuitBreakerTest {
     }
 
     @Test
+    fun cooldownResetsFailureStreak() {
+        var now = 0L
+        val breaker = AniLabCircuitBreaker(
+            failureThreshold = 2,
+            cooldownMillis = 1_000L,
+            nowMillis = { now },
+        )
+
+        breaker.recordFailure("provider")
+        breaker.recordFailure("provider")
+        assertFalse(breaker.allow("provider"))
+
+        now = 1_000L
+        assertTrue(breaker.allow("provider"))
+
+        breaker.recordFailure("provider")
+        assertTrue(breaker.allow("provider"))
+    }
+
+    @Test
+    fun invalidConfigurationIsRejected() {
+        kotlin.test.assertFailsWith<IllegalArgumentException> {
+            AniLabCircuitBreaker(failureThreshold = 0)
+        }
+        kotlin.test.assertFailsWith<IllegalArgumentException> {
+            AniLabCircuitBreaker(cooldownMillis = -1)
+        }
+    }
+
+    @Test
     fun providersHaveIndependentHealthState() {
         val breaker = AniLabCircuitBreaker(failureThreshold = 1, cooldownMillis = 1_000L)
 
