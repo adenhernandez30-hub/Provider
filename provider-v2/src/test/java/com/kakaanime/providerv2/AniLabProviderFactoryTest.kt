@@ -22,4 +22,21 @@ class AniLabProviderFactoryTest {
         assertTrue(extractors.any { it.id == "otakudesu-episode" })
         assertTrue(extractors.none { it.id == "otakudesu-embed" })
     }
+
+    @Test
+    fun samehadaku_registersProviderAndEpisodeExtractor() {
+        val stack = AniLabProviderFactory.samehadaku(
+            provider = SamehadakuProvider("https://v2.samehadaku.how"),
+            episodeExtractor = SamehadakuEpisodeExtractor(
+                acceptedHosts = setOf("v2.samehadaku.how"),
+            ),
+        )
+
+        assertEquals(listOf("samehadaku"), stack.providers.map { it.id })
+
+        val extractors = stack.extractorRegistry.find(
+            "https://v2.samehadaku.how/episode/test-episode-1/",
+        )
+        assertEquals(listOf("samehadaku-episode"), extractors.map { it.id })
+    }
 }
