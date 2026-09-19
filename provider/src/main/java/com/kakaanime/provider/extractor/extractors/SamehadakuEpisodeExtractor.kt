@@ -157,8 +157,9 @@ class SamehadakuEpisodeExtractor(browserResolver: BrowserStreamResolver? = null)
             clean.startsWith("//") -> "https:$clean"
             else -> clean
         }
-        if (!normalized.startsWith("http", true)) return null
-        return runCatching { URI(baseUrl.ifBlank { normalized }).resolve(normalized).toString() }.getOrNull() ?: normalized
+        if (normalized.startsWith("javascript:", true) || normalized.startsWith("data:", true) || normalized.startsWith("#")) return null
+        val resolved = runCatching { URI(baseUrl.ifBlank { "https://$mainHost/" }).resolve(normalized).toString() }.getOrNull() ?: normalized
+        return resolved.takeIf { it.startsWith("http", true) }
     }
 
     private fun isDirectMedia(url: String) = url.contains(".m3u8", true) || url.contains(".mpd", true) || url.contains(".mp4", true) || url.contains(".webm", true)

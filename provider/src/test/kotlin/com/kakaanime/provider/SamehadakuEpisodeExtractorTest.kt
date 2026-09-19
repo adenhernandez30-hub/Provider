@@ -33,4 +33,14 @@ class SamehadakuEpisodeExtractorTest {
 
         assertTrue(normalized == "https://cdn.example/master.m3u8?token=abc")
     }
+
+    @Test
+    fun normalizeCandidateUrlResolvesRelativePath() {
+        val normalized = extractor.normalizeCandidateUrl(
+            baseUrl = "https://samehadaku.li/one-piece-1086/",
+            value = "/embed/player?id=42"
+        )
+
+        assertTrue(normalized == "https://samehadaku.li/embed/player?id=42")
+    }
 }

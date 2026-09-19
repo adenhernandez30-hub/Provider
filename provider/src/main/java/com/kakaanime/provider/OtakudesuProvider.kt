@@ -6,6 +6,7 @@ import com.kakaanime.provider.extractor.StreamResolver
 import com.kakaanime.provider.extractor.extractors.OtakudesuServerExtractor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
@@ -86,13 +87,16 @@ class OtakudesuProvider(browserResolver: BrowserStreamResolver? = null) : AnimeP
     }
 
     override suspend fun getStreams(animeId: String, episodeNumber: Int): List<ProviderStream> {
-        val episode = getEpisodes(animeId).firstOrNull { it.number == episodeNumber } ?: return emptyList()
-        val episodeRef = episode.id.removePrefix("$id:")
         val slug = normalizeAnimeSlug(animeId)
-        val playbackRef = selectPlaybackRef(episodeRef, findWebEpisodeUrl(slug, episodeNumber))
+        val webEpisodeUrl = findWebEpisodeUrl(slug, episodeNumber)
+        val episodeRef = if (webEpisodeUrl != null) "" else {
+            getEpisodes(animeId).firstOrNull { it.number == episodeNumber }?.id?.removePrefix("$id:").orEmpty()
+        }
+        val playbackRef = selectPlaybackRef(episodeRef, webEpisodeUrl)
+        if (playbackRef.isBlank()) return emptyList()
 
         if (playbackRef.startsWith("http", true)) {
-            val siteResolved = siteStreamExtractor.extract(playbackRef, playbackRef)
+            val siteResolved = withTimeoutOrNull(20_000L) { siteStreamExtractor.extract(playbackRef, playbackRef) }.orEmpty()
             if (siteResolved.isNotEmpty()) return siteResolved.map { it.copy(providerId = id) }
         }
         if (playbackRef.startsWith("community:")) {
