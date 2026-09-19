@@ -196,6 +196,119 @@ class AniLabRouter(
         )
     }
 
+    /**
+     * Full routing boundary including the app's real playback probe.
+     *
+     * A provider is successful only when at least one verified candidate also
+     * passes the playback probe. AUTO can therefore move to the next provider
+     * after Media3 rejects every candidate from the current provider.
+     */
+    suspend fun loadPlayableLinks(
+        episodeUrl: String,
+        mode: AniLabRoutingMode,
+        verifiedPipeline: AniLabVerifiedCandidatePipeline,
+        playbackProbe: AniLabPlaybackProbe,
+        selectedProviderId: String? = null,
+        context: AniLabExtractionContext = AniLabExtractionContext(),
+    ): AniLabPlayableRouteResult {
+        val targets = when (mode) {
+            AniLabRoutingMode.AUTO -> providers
+            AniLabRoutingMode.MANUAL -> {
+                val selected = selectedProviderId?.let(providersById::get)
+                    ?: return AniLabPlayableRouteResult.Failure(
+                        listOf(
+                            AniLabFailure(
+                                selectedProviderId.orEmpty(),
+                                AniLabFailureType.PROVIDER_UNAVAILABLE,
+                                "Manual mode requires a registered provider",
+                            ),
+                        ),
+                    )
+                listOf(selected)
+            }
+        }
+
+        val failures = mutableListOf<AniLabFailure>()
+        for (provider in targets) {
+            if (!circuitBreaker.allow(provider.id)) {
+                failures += AniLabFailure(
+                    provider.id,
+                    AniLabFailureType.PROVIDER_UNAVAILABLE,
+                    "Provider circuit is open",
+                )
+                continue
+            }
+
+            try {
+                val rawCandidates = provider.loadLinks(episodeUrl)
+                if (rawCandidates.isEmpty()) {
+                    failures += AniLabFailure(
+                        provider.id,
+                        AniLabFailureType.SERVER_EMPTY,
+                        "Provider returned no stream candidates",
+                    )
+                    circuitBreaker.recordFailure(provider.id)
+                    continue
+                }
+
+                when (val verified = verifiedPipeline.resolve(provider.id, rawCandidates, context)) {
+                    is AniLabVerifiedPipelineResult.Failure -> {
+                        failures += verified.failures
+                        circuitBreaker.recordFailure(provider.id)
+                    }
+                    is AniLabVerifiedPipelineResult.Candidates -> {
+                        var playable: AniLabStreamCandidate? = null
+                        for (candidate in verified.candidates) {
+                            when (val probe = playbackProbe.probe(candidate)) {
+                                AniLabPlaybackProbeResult.Playable -> {
+                                    playable = candidate
+                                    break
+                                }
+                                is AniLabPlaybackProbeResult.Failed -> failures += probe.failure
+                            }
+                        }
+
+                        if (playable != null) {
+                            circuitBreaker.recordSuccess(provider.id)
+                            return AniLabPlayableRouteResult.Candidates(
+                                providerId = provider.id,
+                                candidate = playable,
+                                failures = failures + verified.failures,
+                            )
+                        }
+
+                        failures += verified.failures
+                        if (failures.none { it.providerId == provider.id && it.type == AniLabFailureType.PLAYBACK_FAILED }) {
+                            failures += AniLabFailure(
+                                provider.id,
+                                AniLabFailureType.PLAYBACK_FAILED,
+                                "No verified candidate passed the playback probe",
+                            )
+                        }
+                        circuitBreaker.recordFailure(provider.id)
+                    }
+                }
+            } catch (t: CancellationException) {
+                throw t
+            } catch (t: Throwable) {
+                failures += AniLabFailure(provider.id, classify(t), t.message, t)
+                circuitBreaker.recordFailure(provider.id)
+            }
+        }
+
+        return AniLabPlayableRouteResult.Failure(
+            failures.ifEmpty {
+                listOf(
+                    AniLabFailure(
+                        selectedProviderId.orEmpty(),
+                        AniLabFailureType.PROVIDER_UNAVAILABLE,
+                        "No provider produced a playable stream",
+                    ),
+                )
+            },
+        )
+    }
+
     private fun classify(t: Throwable): AniLabFailureType =
         when (t) {
             is TimeoutCancellationException, is SocketTimeoutException -> AniLabFailureType.TIMEOUT
@@ -228,4 +341,17 @@ sealed interface AniLabVerifiedRouteResult {
     data class Failure(
         val failures: List<AniLabFailure>,
     ) : AniLabVerifiedRouteResult
+}
+
+
+sealed interface AniLabPlayableRouteResult {
+    data class Candidates(
+        val providerId: String,
+        val candidate: AniLabStreamCandidate,
+        val failures: List<AniLabFailure>,
+    ) : AniLabPlayableRouteResult
+
+    data class Failure(
+        val failures: List<AniLabFailure>,
+    ) : AniLabPlayableRouteResult
 }
