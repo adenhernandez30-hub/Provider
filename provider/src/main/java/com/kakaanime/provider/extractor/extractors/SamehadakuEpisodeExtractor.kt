@@ -28,9 +28,13 @@ class SamehadakuEpisodeExtractor(browserResolver: BrowserStreamResolver? = null)
     )
 
     override fun canHandle(url: String): Boolean {
-        val host = runCatching { URI(url).host.orEmpty().lowercase() }.getOrDefault("")
+        val uri = runCatching { URI(url) }.getOrNull() ?: return false
+        val host = uri.host.orEmpty().lowercase()
         if (!host.contains(mainHost)) return false
-        return url.contains("episode", true) || url.contains("/eps-", true) || url.contains("/one-piece-", true)
+        val path = uri.path.orEmpty().lowercase()
+        if (path.contains("/anime/")) return false
+        if (path.contains("/episode") || path.contains("/eps-")) return true
+        return Regex("/[^/]*\\d+/?$").containsMatchIn(path)
     }
 
     override suspend fun extract(url: String, referer: String?): List<ProviderStream> {
