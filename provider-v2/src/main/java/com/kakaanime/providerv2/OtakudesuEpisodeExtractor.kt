@@ -1,6 +1,6 @@
 package com.kakaanime.providerv2
 
-import android.util.Base64
+import java.util.Base64
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -242,7 +242,7 @@ class OtakudesuEpisodeExtractor(
 
     private fun decodeBase64(value: String): String? =
         runCatching {
-            String(Base64.decode(value.trim(), Base64.DEFAULT), Charsets.UTF_8)
+            String(Base64.getDecoder().decode(value.trim()), Charsets.UTF_8)
         }.getOrNull()
 
     private fun resolveUrl(baseUrl: String, value: String): String? =
