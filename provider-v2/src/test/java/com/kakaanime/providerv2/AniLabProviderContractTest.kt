@@ -22,10 +22,12 @@ class AniLabProviderContractTest {
             is AniLabRouteResult.Candidates -> result
             is AniLabRouteResult.Failure -> error("Expected candidates, got failure: ${result.primary.type} provider=${result.primary.providerId} message=${result.primary.message}")
         }
-        assertEquals("second", routed.providerId)
-        assertEquals("server-b", routed.candidates.single().serverId)
-        assertEquals(AniLabFailureType.SERVER_EMPTY, routed.failures.single().type)
-        assertEquals(listOf("first", "second"), listOf(first.lastEpisodeUrl, second.lastEpisodeUrl))
+        check(routed.providerId == "second") { "providerId=${routed.providerId}" }
+        check(routed.candidates.single().serverId == "server-b") { "serverId=${routed.candidates.single().serverId}" }
+        check(routed.failures.single().type == AniLabFailureType.SERVER_EMPTY) { "failures=${routed.failures}" }
+        check(listOf(first.lastEpisodeUrl, second.lastEpisodeUrl) == listOf("first", "second")) {
+            "calls=${listOf(first.lastEpisodeUrl, second.lastEpisodeUrl)}"
+        }
     }
 
     @Test
