@@ -81,6 +81,24 @@ class AniLabProviderContractTest {
     }
 
 
+
+    @Test
+    fun router_rejectsDuplicateProviderIds() {
+        val first = FakeProvider("same")
+        val second = FakeProvider("same")
+
+        kotlin.test.assertFailsWith<IllegalArgumentException> {
+            AniLabRouter(listOf(first, second))
+        }
+    }
+
+    @Test
+    fun router_rejectsBlankProviderId() {
+        kotlin.test.assertFailsWith<IllegalArgumentException> {
+            AniLabRouter(listOf(FakeProvider(" ")))
+        }
+    }
+
     @Test
     fun auto_skipsOpenProviderAndContinues() = runBlocking {
         val now = longArrayOf(0L)
