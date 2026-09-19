@@ -113,6 +113,7 @@ class SamehadakuEpisodeExtractorTest {
             val result = extractor.extract(episodeUrl, AniLabExtractionContext())
             assertTrue(result.any { it.url.endsWith("/media/eastplay.m3u8") })
 
+            server.takeRequest(2, TimeUnit.SECONDS) // episode page
             val ajaxRequest = server.takeRequest(2, TimeUnit.SECONDS)
             assertEquals("POST", ajaxRequest?.method)
             val ajaxBody = ajaxRequest?.body?.readUtf8().orEmpty()
