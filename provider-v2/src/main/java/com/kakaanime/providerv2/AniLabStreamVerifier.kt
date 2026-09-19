@@ -1,0 +1,115 @@
+package com.kakaanime.providerv2
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.io.IOException
+import java.util.concurrent.TimeUnit
+
+/** Lightweight HTTP/media verification before handing a candidate to Media3. */
+class AniLabStreamVerifier(
+    private val client: OkHttpClient = defaultClient(),
+) {
+    suspend fun verify(candidate: AniLabStreamCandidate): AniLabVerificationResult =
+        withContext(Dispatchers.IO) {
+            if (candidate.url.isBlank()) {
+                return@withContext AniLabVerificationResult.Failure(
+                    AniLabFailure(candidate.providerId, AniLabFailureType.INVALID_MEDIA, "Candidate URL is blank"),
+                )
+            }
+
+            val requestBuilder = Request.Builder()
+                .url(candidate.url)
+                .header("Accept", "*/*")
+                .header("Range", "bytes=0-4095")
+
+            candidate.referer?.takeIf { it.isNotBlank() }?.let {
+                requestBuilder.header("Referer", it)
+            }
+            candidate.headers.forEach { (name, value) ->
+                if (name.isNotBlank() && value.isNotBlank() && !name.equals("Range", true)) {
+                    requestBuilder.header(name, value)
+                }
+            }
+            if (candidate.cookies.isNotEmpty()) {
+                requestBuilder.header(
+                    "Cookie",
+                    candidate.cookies.entries.joinToString("; ") { "${it.key}=${it.value}" },
+                )
+            }
+
+            try {
+                client.newCall(requestBuilder.build()).execute().use { response ->
+                    val code = response.code
+                    if (code == 401 || code == 403 || code == 451) {
+                        return@withContext AniLabVerificationResult.Failure(
+                            AniLabFailure(candidate.providerId, AniLabFailureType.HTTP_BLOCKED, "HTTP $code"),
+                        )
+                    }
+                    if (!response.isSuccessful) {
+                        return@withContext AniLabVerificationResult.Failure(
+                            AniLabFailure(candidate.providerId, AniLabFailureType.INVALID_MEDIA, "HTTP $code"),
+                        )
+                    }
+
+                    val body = response.body ?: return@withContext AniLabVerificationResult.Failure(
+                        AniLabFailure(candidate.providerId, AniLabFailureType.INVALID_MEDIA, "Empty response body"),
+                    )
+                    val contentType = body.contentType()?.toString()?.lowercase().orEmpty()
+                    val sample = body.bytes().take(16384).toByteArray()
+                    val detected = detectType(candidate.url, contentType, sample)
+
+                    if (!isCompatible(candidate.type, detected)) {
+                        return@withContext AniLabVerificationResult.Failure(
+                            AniLabFailure(
+                                candidate.providerId,
+                                AniLabFailureType.INVALID_MEDIA,
+                                "Detected $detected but candidate declares ${candidate.type}",
+                            ),
+                        )
+                    }
+                    AniLabVerificationResult.Valid(candidate.copy(type = detected))
+                }
+            } catch (e: IOException) {
+                AniLabVerificationResult.Failure(
+                    AniLabFailure(candidate.providerId, AniLabFailureType.TIMEOUT, e.message, e),
+                )
+            } catch (e: Exception) {
+                AniLabVerificationResult.Failure(
+                    AniLabFailure(candidate.providerId, AniLabFailureType.INVALID_MEDIA, e.message, e),
+                )
+            }
+        }
+
+    private fun detectType(url: String, contentType: String, bytes: ByteArray): AniLabStreamType {
+        val normalizedUrl = url.substringBefore('?').lowercase()
+        val text = bytes.toString(Charsets.UTF_8).trimStart()
+        return when {
+            contentType.contains("mpegurl") || contentType.contains("vnd.apple.mpegurl") ||
+                normalizedUrl.endsWith(".m3u8") || text.startsWith("#EXTM3U") -> AniLabStreamType.HLS
+            contentType.contains("dash+xml") || normalizedUrl.endsWith(".mpd") ||
+                (text.startsWith("<?xml") && text.contains("<MPD", ignoreCase = true)) -> AniLabStreamType.DASH
+            contentType.contains("webm") || normalizedUrl.endsWith(".webm") -> AniLabStreamType.WEBM
+            contentType.contains("mp4") || normalizedUrl.endsWith(".mp4") ||
+                (bytes.size >= 8 && bytes.copyOfRange(4, 8).contentEquals(byteArrayOf(0x66, 0x74, 0x79, 0x70))) -> AniLabStreamType.MP4
+            else -> AniLabStreamType.UNKNOWN
+        }
+    }
+
+    private fun isCompatible(declared: AniLabStreamType, detected: AniLabStreamType): Boolean =
+        declared == AniLabStreamType.UNKNOWN || detected == declared
+
+    private fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(6, TimeUnit.SECONDS)
+        .readTimeout(8, TimeUnit.SECONDS)
+        .callTimeout(12, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .build()
+}
+
+sealed interface AniLabVerificationResult {
+    data class Valid(val candidate: AniLabStreamCandidate) : AniLabVerificationResult
+    data class Failure(val failure: AniLabFailure) : AniLabVerificationResult
+}
