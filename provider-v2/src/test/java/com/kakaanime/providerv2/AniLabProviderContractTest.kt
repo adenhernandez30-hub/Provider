@@ -170,7 +170,7 @@ class AniLabProviderContractTest {
         server.enqueue(MockResponse()
             .setResponseCode(200)
             .setHeader("Content-Type", "application/vnd.apple.mpegurl")
-            .setBody("#EXTM3U\\n"))
+            .setBody("#EXTM3U\n"))
         server.start()
 
         try {
