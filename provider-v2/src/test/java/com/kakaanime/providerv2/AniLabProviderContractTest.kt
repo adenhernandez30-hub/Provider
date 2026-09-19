@@ -4,7 +4,6 @@ import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
-import kotlin.test.assertTrue
 
 class AniLabProviderContractTest {
 
@@ -18,8 +17,10 @@ class AniLabProviderContractTest {
             mode = AniLabRoutingMode.AUTO,
         )
 
-        assertTrue(result is AniLabRouteResult.Candidates, "Expected candidates but got $result")
-        val routed = result as AniLabRouteResult.Candidates
+        val routed = when (result) {
+            is AniLabRouteResult.Candidates -> result
+            is AniLabRouteResult.Failure -> error("Expected candidates, got failure: ${result.primary.type} provider=${result.primary.providerId} message=${result.primary.message}")
+        }
         assertEquals("second", routed.providerId)
         assertEquals("server-b", routed.candidates.single().serverId)
         assertEquals(AniLabFailureType.SERVER_EMPTY, routed.failures.single().type)
