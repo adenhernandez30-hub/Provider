@@ -44,4 +44,3 @@ workflows:
         script: |
           find . -path "*/build/test-results/*" -type f -name "*.xml" -print || true
 
-    test_report: "**/build/test-results/**/*.xml"
