@@ -86,6 +86,43 @@ class SamehadakuEpisodeExtractorTest {
     }
 
     @Test
+    fun extractor_resolvesEastPlayAjaxPlayerOption() = runBlocking {
+        val server = MockWebServer()
+        server.start()
+        server.enqueue(MockResponse().setBody(
+            "<div class=\"east_player_option\" data-post=\"123\" data-nume=\"abc\" data-type=\"schtml\" data-name=\"VIP\"></div>",
+        ))
+        server.enqueue(MockResponse().setBody(
+            "<iframe src=\"${server.url("/player/")}\"></iframe>",
+        ))
+        server.enqueue(MockResponse().setBody(
+            "<video src=\"${server.url("/media/eastplay.m3u8")}\"></video>",
+        ))
+        try {
+            val ajaxUrl = server.url("/wp-admin/admin-ajax.php").toString()
+            val extractor = SamehadakuEpisodeExtractor(
+                acceptedHosts = setOf(server.hostName),
+                ajaxUrl = ajaxUrl,
+                client = OkHttpClient.Builder()
+                    .connectTimeout(2, TimeUnit.SECONDS)
+                    .readTimeout(2, TimeUnit.SECONDS)
+                    .callTimeout(5, TimeUnit.SECONDS)
+                    .build(),
+            )
+            val episodeUrl = server.url("/episode/naruto-episode-1/").toString()
+            val result = extractor.extract(episodeUrl, AniLabExtractionContext())
+            assertTrue(result.any { it.url.endsWith("/media/eastplay.m3u8") })
+
+            val ajaxRequest = server.takeRequest(2, TimeUnit.SECONDS)
+            assertEquals("POST", ajaxRequest?.method)
+            assertTrue(ajaxRequest?.body?.readUtf8()?.contains("action=player_ajax") == true)
+            assertTrue(ajaxRequest?.body?.readUtf8()?.contains("post=123") == true)
+            assertTrue(ajaxRequest?.body?.readUtf8()?.contains("nume=abc") == true)
+            assertTrue(ajaxRequest?.body?.readUtf8()?.contains("type=schtml") == true)
+        } finally { server.shutdown() }
+    }
+
+    @Test
     fun extractor_rejectsNonEpisodeUrl() {
         val extractor = SamehadakuEpisodeExtractor(acceptedHosts = setOf("example.test"))
         assertEquals(false, extractor.canHandle("https://example.test/anime/naruto/"))
