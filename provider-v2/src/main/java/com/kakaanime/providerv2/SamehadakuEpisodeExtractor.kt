@@ -49,14 +49,19 @@ class SamehadakuEpisodeExtractor(
             AniLabStreamCandidate("samehadaku", server, embed, referer = base)
         }.distinctBy { it.url }.toList()
 
-    private suspend fun get(url: String, context: AniLabExtractionContext): String? {
+    private suspend fun get(url: String, context: AniLabExtractionContext): String? =
         try {
             val b = Request.Builder().url(url).header("User-Agent", context.userAgent ?: USER_AGENT)
                 .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
             context.referer?.takeIf(String::isNotBlank)?.let { b.header("Referer", it) }
-            return client.newCall(b.build()).execute().use { response -> if (!response.isSuccessful) null else response.body?.string() }
-        } catch (t: CancellationException) { throw t } catch (_: Exception) { null }
-    }
+            client.newCall(b.build()).execute().use { response ->
+                if (!response.isSuccessful) null else response.body?.string()
+            }
+        } catch (t: CancellationException) {
+            throw t
+        } catch (_: Exception) {
+            null
+        }
 
     private fun resolve(base: String, value: String): String? = runCatching { URI(base).resolve(value).toString() }.getOrNull()
     private fun mediaType(url: String): AniLabStreamType {
