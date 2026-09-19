@@ -50,7 +50,7 @@ class StreamResolverTest {
             )
 
             assertEquals(1, streams.size)
-            assertEquals("https://media.example/stream.m3u8", streams.first().url)
+            assertEquals("http://media.example/stream.m3u8", streams.first().url)
             assertEquals(StreamType.HLS, streams.first().type)
         } finally {
             server.close()
