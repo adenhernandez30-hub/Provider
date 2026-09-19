@@ -16,7 +16,12 @@ class AniLabRouter(
     providers: List<AniLabProvider>,
     private val circuitBreaker: AniLabCircuitBreaker = AniLabCircuitBreaker(),
 ) {
-    private val providers = providers.toList()
+    private val providers = providers.toList().also { list ->
+        require(list.all { it.id.isNotBlank() }) { "Provider ids must not be blank" }
+        require(list.map { it.id }.distinct().size == list.size) {
+            "Provider ids must be unique"
+        }
+    }
     private val providersById = this.providers.associateBy { it.id }
 
     suspend fun loadLinks(
