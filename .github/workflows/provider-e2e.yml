@@ -24,5 +24,5 @@ jobs:
         env:
           ANILAB_REAL_E2E: 'true'
           ANILAB_E2E_QUERY: 'One Piece'
-          ANILAB_E2E_TIMEOUT_MS: '60000'
+          ANILAB_E2E_TIMEOUT_MS: '180000'
         run: ./gradlew :provider:test --tests com.kakaanime.provider.ProviderRealSiteE2ETest --stacktrace
