@@ -8,6 +8,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
+import java.net.URI
 import java.util.concurrent.TimeUnit
 
 /** AnimeDao-specific player discovery. */
@@ -39,7 +40,7 @@ class AnimeDaoProvider(browserResolver: BrowserStreamResolver? = null) : AnimePr
                 baseUrl + "/episodes/" + raw.substringAfterLast("/anime/").substringBefore("?").trim('/') + "-1x" + episodeNumber + "/"
             }
 
-        val doc = getDocument(episodeUrl) ?: return resolver.resolve(listOf(episodeUrl), referer = baseUrl)
+        val doc = getDocument(episodeUrl) ?: return resolver.resolve(listOf(episodeUrl), referer = episodeUrl)
         val candidates = buildList {
             known(doc, "gstore", "source").forEach(::add)
             known(doc, "vid", "video").forEach(::add)
@@ -58,15 +59,34 @@ class AnimeDaoProvider(browserResolver: BrowserStreamResolver? = null) : AnimePr
                 }
                 .filter { it.isNotBlank() }
                 .forEach(::add)
-        }.filter { it.startsWith("http", true) }.distinct()
-        if (candidates.isEmpty()) return resolver.resolve(listOf(episodeUrl), referer = baseUrl)
+            doc.select("script").forEach { script ->
+                Regex("""(?:https?:)?//[^\s"'<>]+(?:m3u8|mpd|mp4|stream|embed)[^\s"'<>]*""", RegexOption.IGNORE_CASE)
+                    .findAll(script.data())
+                    .map { it.value }
+                    .forEach(::add)
+            }
+        }.mapNotNull { normalizeCandidateUrl(episodeUrl, it) }
+            .distinct()
+        if (candidates.isEmpty()) return resolver.resolve(listOf(episodeUrl), referer = episodeUrl)
         return resolver.resolve(candidates, referer = episodeUrl).map { it.copy(providerId = id) }
     }
     private fun known(doc: Document, id: String, kind: String): List<String> {
         val wrapper = doc.selectFirst("#videowrapper_$id") ?: return emptyList()
-        return if (kind == "source") wrapper.select("video source[src]").map { it.absUrl("src") }
-        else if (kind == "video") wrapper.select("video[src], video source[src]").map { it.absUrl("src").ifBlank { it.absUrl("data-src") } }
-        else wrapper.select("iframe[src]").map { it.absUrl("src").ifBlank { it.absUrl("data-src") } }
+        return if (kind == "source") wrapper.select("video source[src], video source[data-src], source[src], source[data-src]").map { it.absUrl("src").ifBlank { it.absUrl("data-src") } }
+        else if (kind == "video") wrapper.select("video[src], video[data-src], video source[src], video source[data-src]").map { it.absUrl("src").ifBlank { it.absUrl("data-src") } }
+        else wrapper.select("iframe[src], iframe[data-src]").map { it.absUrl("src").ifBlank { it.absUrl("data-src") } }
+    }
+
+    internal fun normalizeCandidateUrl(baseUrl: String, value: String): String? {
+        val clean = value.trim()
+            .replace("\\/", "/")
+            .replace("\\u002F", "/")
+            .replace("&amp;", "&")
+            .removePrefix("\"")
+            .removeSuffix("\"")
+        val withScheme = if (clean.startsWith("//")) "https:$clean" else clean
+        if (!withScheme.startsWith("http", true)) return null
+        return runCatching { URI(baseUrl).resolve(withScheme).toString() }.getOrNull() ?: withScheme
     }
     private suspend fun getDocument(url: String): Document? = withContext(Dispatchers.IO) {
         runCatching { val request = Request.Builder().url(url).header("User-Agent", UA).header("Accept", "text/html,application/xhtml+xml").header("Referer", "$baseUrl/").build()

@@ -42,22 +42,22 @@ class SamehadakuEpisodeExtractor(browserResolver: BrowserStreamResolver? = null)
         val discovered = linkedMapOf<String, DiscoveredLink>()
         page.select("div#downloadb li a[href]").forEach { anchor ->
             val href = anchor.absUrl("href").ifBlank { anchor.attr("href") }.trim()
-            if (href.startsWith("http", true)) {
+            normalizeCandidateUrl(url, href)?.let { normalized ->
                 val quality = anchor.parent()?.selectFirst("strong")?.text()?.trim()
                     ?: anchor.closest("li")?.selectFirst("strong")?.text()?.trim()
-                discovered.putIfAbsent(href, DiscoveredLink(href, quality))
+                discovered.putIfAbsent(normalized, DiscoveredLink(normalized, quality))
             }
         }
-        page.select("#server > ul > li > div").forEach { server ->
+        page.select("#server > ul > li > div, #server > ul > li[data-post][data-nume], #server .server_option[data-post][data-nume]").forEach { server ->
             val post = server.attr("data-post").trim(); val nume = server.attr("data-nume").trim(); val type = server.attr("data-type").trim()
             if (post.isBlank() || nume.isBlank()) return@forEach
             requestPlayerAjax(url, post, nume, type)?.let { embed ->
                 discovered.putIfAbsent(embed, DiscoveredLink(embed, server.selectFirst("span")?.text()?.trim()))
             }
         }
-        if (discovered.isEmpty()) page.selectFirst("iframe[src], iframe[data-src]")?.let { iframe ->
-            val href = iframe.absUrl("src").ifBlank { iframe.attr("src") }.ifBlank { iframe.attr("data-src") }.trim()
-            if (href.startsWith("http", true)) discovered[href] = DiscoveredLink(href, null)
+        if (discovered.isEmpty()) page.selectFirst("iframe[src], iframe[data-src], embed[src], embed[data-src]")?.let { iframe ->
+            val href = iframe.absUrl("src").ifBlank { iframe.attr("src") }.ifBlank { iframe.absUrl("data-src") }.ifBlank { iframe.attr("data-src") }.trim()
+            normalizeCandidateUrl(url, href)?.let { discovered[it] = DiscoveredLink(it, null) }
         }
         if (discovered.isEmpty()) return emptyList()
 
@@ -132,14 +132,33 @@ class SamehadakuEpisodeExtractor(browserResolver: BrowserStreamResolver? = null)
             val href = media.absUrl("src").ifBlank { media.attr("src") }
             if (href.isNotBlank()) return href.trim()
         }
-        return Regex("(?:src|file|source|url)\\s*[:=]\\s*[\\\"']([^\\\"']+)").find(payload)?.groupValues?.getOrNull(1)?.trim()
-            ?: Regex("""https?://[^\\s\\\"'<>]+""").find(payload)?.value
+        val candidateRaw = Regex("(?:src|file|source|url)\\s*[:=]\\s*[\\\"']([^\\\"']+)").find(payload)?.groupValues?.getOrNull(1)?.trim()
+            ?: Regex("""https?:\\?/\\?/[^\\s\\\"'<>]+""").find(payload)?.value
+        return normalizeCandidateUrl(baseUrl, candidateRaw)
     }
 
     private fun extractDataPageUrl(value: String): String? {
         val raw = runCatching { URLDecoder.decode(value, "UTF-8") }.getOrDefault(value).replace("\\/", "/").replace("\\\"", "\"")
-        return Regex("\\\"url\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"").find(raw)?.groupValues?.getOrNull(1)?.trim()
+        val candidate = Regex("\\\"url\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"").find(raw)?.groupValues?.getOrNull(1)?.trim()
             ?: Regex("(?:^|[,{])\\s*url\\s*[:=]\\s*[\\\"']([^\\\"']+)").find(raw)?.groupValues?.getOrNull(1)?.trim()
+        return normalizeCandidateUrl("", candidate)
+    }
+
+    internal fun normalizeCandidateUrl(baseUrl: String, value: String?): String? {
+        val raw = value?.trim()?.takeIf { it.isNotBlank() } ?: return null
+        val clean = raw
+            .replace("\\/", "/")
+            .replace("\\u002F", "/")
+            .replace("\\u003A", ":")
+            .replace("&amp;", "&")
+            .removePrefix("\"")
+            .removeSuffix("\"")
+        val normalized = when {
+            clean.startsWith("//") -> "https:$clean"
+            else -> clean
+        }
+        if (!normalized.startsWith("http", true)) return null
+        return runCatching { URI(baseUrl.ifBlank { normalized }).resolve(normalized).toString() }.getOrNull() ?: normalized
     }
 
     private fun isDirectMedia(url: String) = url.contains(".m3u8", true) || url.contains(".mpd", true) || url.contains(".mp4", true) || url.contains(".webm", true)

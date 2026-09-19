@@ -21,9 +21,9 @@ class OtakudesuServerExtractor : StreamExtractor {
     private val client = OkHttpClient.Builder()
         .followRedirects(true)
         .followSslRedirects(true)
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
-        .callTimeout(35, TimeUnit.SECONDS)
+        .connectTimeout(8, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
+        .callTimeout(12, TimeUnit.SECONDS)
         .build()
 
     private val genericEmbed = GenericEmbedExtractor()
@@ -39,11 +39,11 @@ class OtakudesuServerExtractor : StreamExtractor {
     override suspend fun extract(url: String, referer: String?): List<ProviderStream> = withContext(Dispatchers.IO) {
         val html = get(url, referer) ?: return@withContext emptyList()
         val results = linkedMapOf<String, ProviderStream>()
+        val playbackCandidates = limitedPlaybackCandidates(
+            resolveMirrorStream(url, html) + discoverDownloadLinks(url, html)
+        )
 
-        resolveMirrorStream(url, html).forEach { candidate ->
-            resolveExternal(candidate.url, url, candidate.quality).forEach { results.putIfAbsent(it.url, it) }
-        }
-        discoverDownloadLinks(url, html).forEach { candidate ->
+        playbackCandidates.forEach { candidate ->
             resolveExternal(candidate.url, url, candidate.quality).forEach { results.putIfAbsent(it.url, it) }
         }
         if (results.isEmpty()) {
@@ -116,9 +116,18 @@ class OtakudesuServerExtractor : StreamExtractor {
                 resolveGenericEmbed(normalized, referer, normalizedQuality)
             }
             clean.contains("vidhide", true) -> resolveGenericEmbed(clean, referer, normalizedQuality)
-            else -> resolveGenericEmbed(clean, referer, normalizedQuality)
+            else -> emptyList()
         }
     }
+
+    internal fun limitedPlaybackCandidates(candidates: List<PlaybackCandidate>): List<PlaybackCandidate> =
+        candidates
+            .asSequence()
+            .map { it.copy(url = it.url.trim()) }
+            .filter { it.url.startsWith("http", true) }
+            .distinctBy { it.url }
+            .take(MAX_PLAYBACK_CANDIDATES)
+            .toList()
 
     private suspend fun resolveDesuStream(url: String, referer: String, quality: String?): List<ProviderStream> {
         val html = get(url, referer) ?: return emptyList()
@@ -237,11 +246,12 @@ class OtakudesuServerExtractor : StreamExtractor {
     private fun String.toStreamType(): StreamType { val clean = substringBefore('?').substringBefore('#').lowercase(); return when { clean.endsWith(".m3u8") -> StreamType.HLS; clean.endsWith(".mpd") -> StreamType.DASH; else -> StreamType.MP4 } }
     private fun mediaHeaders(referer: String) = mapOf("User-Agent" to UA, "Referer" to referer)
 
-    private data class PlaybackCandidate(val url: String, val quality: String?)
+    internal data class PlaybackCandidate(val url: String, val quality: String?)
     private data class MirrorEntry(val id: String, val i: String, val q: String)
 
     private companion object {
         const val UA = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36"
+        const val MAX_PLAYBACK_CANDIDATES = 5
         private val NONCE_ACTION_REGEX = Regex("data\\s*:\\s*\\{\\s*action\\s*:\\s*\"([a-f0-9]+)\"", RegexOption.IGNORE_CASE)
         private val ACTION_REGEX = Regex("nonce\\s*:\\s*[^,]+,\\s*action\\s*:\\s*\"([a-f0-9]+)\"", RegexOption.IGNORE_CASE)
         private val FALLBACK_ACTION_REGEX = Regex("action\\s*:\\s*\"([a-f0-9]{32})\"", RegexOption.IGNORE_CASE)
