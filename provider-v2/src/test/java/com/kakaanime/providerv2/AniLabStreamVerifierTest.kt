@@ -7,6 +7,7 @@ import okhttp3.mockwebserver.MockWebServer
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import java.util.concurrent.TimeUnit
 
 class AniLabStreamVerifierTest {
 
@@ -106,6 +107,37 @@ class AniLabStreamVerifierTest {
         }
     }
 
+
+    @Test
+    fun readTimeout_isClassifiedAsTimeout() = runBlocking {
+        server.start()
+        try {
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setHeader("Content-Type", "application/vnd.apple.mpegurl")
+                    .setBody("#EXTM3U\\n")
+                    .setBodyDelay(200, TimeUnit.MILLISECONDS),
+            )
+
+            val candidate = AniLabStreamCandidate(
+                providerId = "test",
+                serverId = "timeout",
+                url = server.url("/stream").toString(),
+                type = AniLabStreamType.HLS,
+            )
+
+            val client = OkHttpClient.Builder()
+                .readTimeout(50, TimeUnit.MILLISECONDS)
+                .build()
+            val result = AniLabStreamVerifier(client).verify(candidate)
+
+            val failure = assertIs<AniLabVerificationResult.Failure>(result)
+            assertEquals(AniLabFailureType.TIMEOUT, failure.failure.type)
+        } finally {
+            server.shutdown()
+        }
+    }
 
     @Test
     fun malformedHlsManifest_isRejected() = runBlocking {
