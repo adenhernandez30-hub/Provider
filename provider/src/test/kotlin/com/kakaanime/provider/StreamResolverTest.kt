@@ -52,6 +52,7 @@ class StreamResolverTest {
             assertEquals(1, streams.size)
             assertEquals("http://media.example/stream.m3u8", streams.first().url)
             assertEquals(StreamType.HLS, streams.first().type)
+            assertTrue(streams.first().headers["Referer"]?.contains("/embed") == true)
         } finally {
             server.close()
         }
