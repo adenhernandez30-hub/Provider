@@ -73,6 +73,34 @@ class BackendServerTest {
         }
     }
 
+    @Test
+    fun providersAndHealthExposeSameRuntimeProviderSet() {
+        val port = freePort()
+        val alpha = FakeProvider(id = "alpha", priority = 20)
+        val beta = FakeProvider(id = "beta", priority = 10)
+        val registry = ProviderRegistry().apply {
+            register(alpha)
+            register(beta)
+        }
+        val server = BackendServer(ProviderEngine(registry), port = port)
+
+        server.start()
+        try {
+            val providers = request(port, "/providers")
+            assertEquals(200, providers.status)
+
+            val health = request(port, "/health")
+            assertEquals(200, health.status)
+
+            assertEquals(
+                extractProviderIdsFromProviders(providers.body),
+                extractProviderIdsFromHealth(health.body),
+            )
+        } finally {
+            server.stop()
+        }
+    }
+
     private fun freePort(): Int =
         ServerSocket(0).use { it.localPort }
 
@@ -100,11 +128,17 @@ class BackendServerTest {
         val body: String,
     )
 
-    private class FakeProvider : AnimeProvider {
-        override val id = "fake"
-        override val name = "Fake Provider"
-        override val priority = 1
+    private fun extractProviderIdsFromProviders(body: String): List<String> =
+        Regex("\"id\":\"([^\"]+)\"").findAll(body).map { it.groupValues[1] }.toList()
 
+    private fun extractProviderIdsFromHealth(body: String): List<String> =
+        Regex("\"providerId\":\"([^\"]+)\"").findAll(body).map { it.groupValues[1] }.toList()
+
+    private class FakeProvider(
+        override val id: String = "fake",
+        override val name: String = "Fake Provider",
+        override val priority: Int = 1,
+    ) : AnimeProvider {
         override suspend fun search(query: String): List<ProviderAnime> =
             if (query == "test") {
                 listOf(
