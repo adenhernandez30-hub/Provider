@@ -10,8 +10,8 @@ import com.kakaanime.provider.ProviderFactory
 object Backend
 
 fun main() {
-    val registry = ProviderFactory.createRegistry()
-    val server = BackendServer(registry)
+    val engine = ProviderFactory.createEngine()
+    val server = BackendServer(engine)
     server.start()
     println("AniLab Provider Backend listening on http://0.0.0.0:8080")
 }
