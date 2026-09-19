@@ -25,31 +25,52 @@ class KuramanimeProvider(browserResolver: BrowserStreamResolver? = null) : Anime
             "$baseUrl/anime?search=$encoded&page=1",
             "$baseUrl/anime?keyword=$encoded&page=1",
             "$baseUrl/search?keyword=$encoded",
-            "$baseUrl/search?q=$encoded"
+            "$baseUrl/search?q=$encoded",
+            "$baseUrl/?s=$encoded"
         ).distinct()
 
         for (url in searchUrls) {
             val doc = getDocument(url, baseUrl) ?: continue
-            val results = doc.select(
-                "div.filter__gallery > a, a[href*='/anime/'], " +
-                    "a[href*='/anime/'][title], article a[href*='/anime/']"
-            ).mapNotNull { a ->
-                val href = a.absUrl("href").ifBlank { a.attr("href") }
-                val title = a.selectFirst("h5, .title, .name")?.text()?.trim()
-                    ?: a.attr("title").trim().ifBlank { a.text().trim() }
-                if (href.isBlank() || title.isBlank() || !href.contains("/anime/", true)) null
-                else ProviderAnime(
-                    "$id:$href",
-                    title,
-                    id,
-                    posterUrl = a.selectFirst("img")?.let {
-                        it.absUrl("src").ifBlank { it.absUrl("data-src") }
-                    }?.ifBlank { null }
-                )
-            }.distinctBy { it.id }.take(30)
+            val results = extractSearchResults(doc, query)
             if (results.isNotEmpty()) return results
         }
         return emptyList()
+    }
+
+    internal fun extractSearchResults(doc: Document, query: String, parseEmbedded: Boolean = true): List<ProviderAnime> {
+        val normalizedQuery = query.trim().lowercase()
+        val cards = doc.select(
+            "div.filter__gallery > a, article a, div.listupd .bs a, div.listupd .bsx a, " +
+                "a[href*='/anime/'], a[href*='/series/'], a[href*='/judul-anime/']"
+        ).mapNotNull { a ->
+            val href = a.absUrl("href").ifBlank { a.attr("href") }.trim()
+            val title = a.selectFirst("h5, h4, h3, .title, .name, .tt, img[alt]")?.let { element ->
+                if (element.tagName().equals("img", true)) element.attr("alt").trim() else element.text().trim()
+            } ?: a.attr("title").trim().ifBlank { a.text().trim() }
+            val normalizedTitle = title.lowercase()
+            val looksLikeAnime = href.contains("/anime/", true) || href.contains("/series/", true) || href.contains("/judul-anime/", true)
+            if (href.isBlank() || title.isBlank() || !looksLikeAnime) null
+            else if (normalizedQuery.isNotBlank() && !normalizedTitle.contains(normalizedQuery) && !href.lowercase().contains(normalizedQuery.replace(' ', '-'))) null
+            else ProviderAnime(
+                "$id:$href",
+                title,
+                id,
+                posterUrl = a.selectFirst("img")?.let { it.absUrl("src").ifBlank { it.absUrl("data-src") } }?.ifBlank { null }
+            )
+        }.distinctBy { it.id }
+        if (cards.isNotEmpty()) return cards.take(30)
+
+        if (!parseEmbedded) return emptyList()
+        val embedded = doc.select("[data-content]").flatMap { holder ->
+            val html = holder.attr("data-content")
+                .replace("&amp;", "&")
+                .replace("&quot;", "\"")
+                .replace("&#039;", "'")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+            if (html.isBlank()) emptyList() else extractSearchResults(Jsoup.parseBodyFragment(html, baseUrl), query, parseEmbedded = false)
+        }
+        return embedded.distinctBy { it.id }.take(30)
     }
 
     override suspend fun getAnime(animeId: String): ProviderAnime? {

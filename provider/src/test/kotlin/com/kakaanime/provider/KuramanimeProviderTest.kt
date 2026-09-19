@@ -46,4 +46,27 @@ class KuramanimeProviderTest {
             candidates
         )
     }
+
+    @Test
+    fun extractSearchResultsHandlesSeriesPathAndEmbeddedContent() {
+        val html = """
+            <html>
+              <body>
+                <a href="/series/one-piece/" title="One Piece"></a>
+                <div data-content="&lt;a href=&quot;/anime/one-piece-sub-indo/&quot; title=&quot;One Piece Sub Indo&quot;&gt;One Piece Sub Indo&lt;/a&gt;"></div>
+              </body>
+            </html>
+        """.trimIndent()
+        val doc = Jsoup.parse(html, "https://v20.kuramanime.ing/search?q=one+piece")
+
+        val results = provider.extractSearchResults(doc, "One Piece")
+
+        assertEquals(
+            listOf(
+                "kuramanime:https://v20.kuramanime.ing/series/one-piece/",
+                "kuramanime:https://v20.kuramanime.ing/anime/one-piece-sub-indo/"
+            ),
+            results.map { it.id }
+        )
+    }
 }

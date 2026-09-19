@@ -23,4 +23,14 @@ class SamehadakuEpisodeExtractorTest {
     fun rejectsOtherDomains() {
         assertFalse(extractor.canHandle("https://example.com/one-piece-1086/"))
     }
+
+    @Test
+    fun normalizeCandidateUrlFixesEscapedProtocol() {
+        val normalized = extractor.normalizeCandidateUrl(
+            baseUrl = "https://samehadaku.li/one-piece-1086/",
+            value = "https:\\/\\/cdn.example\\/master.m3u8?token=abc"
+        )
+
+        assertTrue(normalized == "https://cdn.example/master.m3u8?token=abc")
+    }
 }
