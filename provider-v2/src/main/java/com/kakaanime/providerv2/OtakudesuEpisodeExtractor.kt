@@ -310,6 +310,11 @@ class OtakudesuEpisodeExtractor(
             "nonce\\s*:\\s*[^,]+,\\s*action\\s*:\\s*[\"']([a-f0-9]{16,64})[\"']",
             RegexOption.IGNORE_CASE,
         )
+        val FALLBACK_ACTION_REGEX = Regex(
+            "action\\s*:\\s*[\"']([a-f0-9]{8,128})[\"']",
+            RegexOption.IGNORE_CASE,
+        )
+        val NONCE_REGEX = Regex("[A-Za-z0-9_-]{8,128}")
         val DATA_CONTENT_REGEX = Regex(
             "data-content\\s*=\\s*[\"']([^\"']+)[\"']",
             RegexOption.IGNORE_CASE,
