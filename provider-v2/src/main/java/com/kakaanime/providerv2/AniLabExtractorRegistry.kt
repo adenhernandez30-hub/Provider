@@ -10,7 +10,14 @@ class AniLabExtractorRegistry(
     private val extractors = extractors.toList()
 
     fun find(url: String): List<AniLabExtractor> =
-        extractors.filter { runCatching { it.canHandle(url) }.getOrDefault(false) }
+        extractors.filter { extractor ->
+            try {
+                extractor.canHandle(url)
+            } catch (t: Throwable) {
+                if (t is CancellationException) throw t
+                false
+            }
+        }
 
     suspend fun extract(
         url: String,
