@@ -1,0 +1,47 @@
+workflows:
+  provider-real-e2e:
+    name: Provider Real-Site E2E
+    instance_type: linux_x2
+    max_build_duration: 60
+
+    environment:
+      java: 17
+
+      vars:
+        ANILAB_REAL_E2E: "true"
+        ANILAB_E2E_QUERY: "One Piece"
+        ANILAB_E2E_TIMEOUT_MS: "60000"
+        ANILAB_E2E_REQUIRED_PROVIDERS: "otakudesu,samehadaku,kuramanime,animedao,animeisme"
+
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: backend-foundation
+          include: true
+          source: true
+      cancel_previous_builds: true
+
+    cache:
+      cache_paths:
+        - ~/.gradle/caches
+        - ~/.gradle/wrapper
+
+    scripts:
+      - name: Verify environment
+        script: |
+          java -version
+          ./gradlew --version
+
+      - name: Run Provider real-site E2E
+        script: |
+          mkdir -p test-results
+          ./gradlew :provider:test \
+            --tests com.kakaanime.provider.ProviderRealSiteE2ETest \
+            --stacktrace
+
+      - name: Collect E2E results
+        script: |
+          find . -path "*/build/test-results/*" -type f -name "*.xml" -print || true
+
+    test_report: "**/build/test-results/**/*.xml"
