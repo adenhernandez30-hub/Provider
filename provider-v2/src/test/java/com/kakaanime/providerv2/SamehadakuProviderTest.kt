@@ -115,10 +115,11 @@ class SamehadakuEpisodeExtractorTest {
 
             val ajaxRequest = server.takeRequest(2, TimeUnit.SECONDS)
             assertEquals("POST", ajaxRequest?.method)
-            assertTrue(ajaxRequest?.body?.readUtf8()?.contains("action=player_ajax") == true)
-            assertTrue(ajaxRequest?.body?.readUtf8()?.contains("post=123") == true)
-            assertTrue(ajaxRequest?.body?.readUtf8()?.contains("nume=abc") == true)
-            assertTrue(ajaxRequest?.body?.readUtf8()?.contains("type=schtml") == true)
+            val ajaxBody = ajaxRequest?.body?.readUtf8().orEmpty()
+            assertTrue(ajaxBody.contains("action=player_ajax"))
+            assertTrue(ajaxBody.contains("post=123"))
+            assertTrue(ajaxBody.contains("nume=abc"))
+            assertTrue(ajaxBody.contains("type=schtml"))
         } finally { server.shutdown() }
     }
 
