@@ -26,13 +26,13 @@ class AniLabGenericEmbedExtractorTest {
         server.enqueue(MockResponse().setBody("<html><iframe src=\"$playerUrl\"></iframe></html>"))
         server.enqueue(MockResponse().setBody("<video src=\"$mediaUrl\"></video>"))
         val extractor = AniLabGenericEmbedExtractor(OkHttpClient.Builder().build())
-        val sourceUrl = "https://vidhide.com/embed/test"
+        val sourceUrl = server.url("/entry").toString()
         val candidates = extractor.extract(sourceUrl, AniLabExtractionContext(referer = sourceUrl))
         assertEquals(1, candidates.size)
         assertEquals(mediaUrl, candidates.single().url)
         assertEquals(AniLabStreamType.HLS, candidates.single().type)
         assertEquals(playerUrl, candidates.single().referer)
-        assertEquals("/player", server.takeRequest().path)
+        assertEquals("/entry", server.takeRequest().path)
         assertEquals("/player", server.takeRequest().path)
     }
 
