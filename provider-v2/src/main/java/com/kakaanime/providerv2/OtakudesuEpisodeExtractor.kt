@@ -65,8 +65,10 @@ class OtakudesuEpisodeExtractor(
         val nonceAction = NONCE_ACTION_REGEX.find(script)?.groupValues?.getOrNull(1)
             ?: return emptyList()
 
-        val action = ACTION_REGEX.find(script)?.groupValues?.getOrNull(1)
-            ?: return emptyList()
+        val action = (
+            ACTION_REGEX.find(script)?.groupValues?.getOrNull(1)
+                ?: FALLBACK_ACTION_REGEX.find(script)?.groupValues?.getOrNull(1)
+        ) ?: return emptyList()
 
         val ajaxReferer = "$origin/"
         val nonceRaw = postAjax(
@@ -77,7 +79,7 @@ class OtakudesuEpisodeExtractor(
         ) ?: return emptyList()
 
         val noncePayload = extractData(nonceRaw) ?: return emptyList()
-        val nonce = decodeBase64(noncePayload)?.takeIf { it.isNotBlank() } ?: noncePayload
+        val nonce = decodeNonce(noncePayload) ?: return emptyList()
 
         val entries = DATA_CONTENT_REGEX.findAll(html)
             .map { decodeHtml(it.groupValues[1]) }
@@ -244,6 +246,16 @@ class OtakudesuEpisodeExtractor(
         runCatching {
             String(Base64.getDecoder().decode(value.trim()), Charsets.UTF_8)
         }.getOrNull()
+
+    private fun decodeNonce(value: String): String? {
+        val raw = value.trim()
+        if (raw.isBlank()) return null
+        if (NONCE_REGEX.matches(raw)) return raw
+
+        return decodeBase64(raw)
+            ?.trim()
+            ?.takeIf { NONCE_REGEX.matches(it) }
+    }
 
     private fun resolveUrl(baseUrl: String, value: String): String? =
         runCatching { URI(baseUrl).resolve(value).toString() }.getOrNull()
