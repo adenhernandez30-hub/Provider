@@ -15,13 +15,14 @@ class KuramanimeProvider(browserResolver: BrowserStreamResolver? = null) : Anime
     override val id = "kuramanime"
     override val name = "Kuramanime"
     override val priority = 210
-    private val baseUrl = "https://v20.kuramanime.ing"
+    private val baseUrl = "https://v18.kuramanime.ing"
     private val client = OkHttpClient.Builder().connectTimeout(10, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).callTimeout(30, TimeUnit.SECONDS).followRedirects(true).build()
     private val resolver = StreamResolver(ExtractorRegistry(browserResolver = browserResolver), browserResolver = browserResolver)
 
     override suspend fun search(query: String): List<ProviderAnime> {
         val encoded = encode(query)
         val searchUrls = listOf(
+            "$baseUrl/anime?search=$encoded&order_by=latest",
             "$baseUrl/anime?search=$encoded&page=1",
             "$baseUrl/anime?keyword=$encoded&page=1",
             "$baseUrl/search?keyword=$encoded",
@@ -40,11 +41,11 @@ class KuramanimeProvider(browserResolver: BrowserStreamResolver? = null) : Anime
     internal fun extractSearchResults(doc: Document, query: String, parseEmbedded: Boolean = true): List<ProviderAnime> {
         val normalizedQuery = query.trim().lowercase()
         val cards = doc.select(
-            "div.filter__gallery > a, article a, div.listupd .bs a, div.listupd .bsx a, " +
+            "div.product__item, div.filter__gallery > a, article a, div.listupd .bs a, div.listupd .bsx a, " +
                 "a[href*='/anime/'], a[href*='/series/'], a[href*='/judul-anime/']"
         ).mapNotNull { a ->
             val href = a.absUrl("href").ifBlank { a.attr("href") }.trim()
-            val title = a.selectFirst("h5, h4, h3, .title, .name, .tt, img[alt]")?.let { element ->
+            val title = a.selectFirst("h5 a, h5, h4, h3, .title, .name, .tt, img[alt]")?.let { element ->
                 if (element.tagName().equals("img", true)) element.attr("alt").trim() else element.text().trim()
             } ?: a.attr("title").trim().ifBlank { a.text().trim() }
             val normalizedTitle = title.lowercase()
