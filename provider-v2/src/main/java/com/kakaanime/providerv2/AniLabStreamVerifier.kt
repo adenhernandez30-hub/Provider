@@ -1,10 +1,12 @@
 package com.kakaanime.providerv2
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
+import java.net.SocketTimeoutException
 import java.util.concurrent.TimeUnit
 
 /** Lightweight HTTP/media verification before handing a candidate to Media3. */
@@ -28,7 +30,11 @@ class AniLabStreamVerifier(
                 requestBuilder.header("Referer", it)
             }
             candidate.headers.forEach { (name, value) ->
-                if (name.isNotBlank() && value.isNotBlank() && !name.equals("Range", true)) {
+                if (name.isNotBlank() && value.isNotBlank() &&
+                    !name.equals("Range", true) &&
+                    !name.equals("Referer", true) &&
+                    !name.equals("Cookie", true)
+                ) {
                     requestBuilder.header(name, value)
                 }
             }
@@ -57,7 +63,7 @@ class AniLabStreamVerifier(
                         AniLabFailure(candidate.providerId, AniLabFailureType.INVALID_MEDIA, "Empty response body"),
                     )
                     val contentType = body.contentType()?.toString()?.lowercase().orEmpty()
-                    val sample = body.bytes().take(16384).toByteArray()
+                    val sample = response.peekBody(MAX_SAMPLE_BYTES.toLong()).bytes()
                     val detected = detectType(candidate.url, contentType, sample)
 
                     if (!isCompatible(candidate.type, detected)) {
@@ -71,9 +77,15 @@ class AniLabStreamVerifier(
                     }
                     AniLabVerificationResult.Valid(candidate.copy(type = detected))
                 }
-            } catch (e: IOException) {
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: SocketTimeoutException) {
                 AniLabVerificationResult.Failure(
                     AniLabFailure(candidate.providerId, AniLabFailureType.TIMEOUT, e.message, e),
+                )
+            } catch (e: IOException) {
+                AniLabVerificationResult.Failure(
+                    AniLabFailure(candidate.providerId, AniLabFailureType.PROVIDER_UNAVAILABLE, e.message, e),
                 )
             } catch (e: Exception) {
                 AniLabVerificationResult.Failure(
@@ -101,6 +113,8 @@ class AniLabStreamVerifier(
         declared == AniLabStreamType.UNKNOWN || detected == declared
 
     companion object {
+        private const val MAX_SAMPLE_BYTES = 16 * 1024
+
         private fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(6, TimeUnit.SECONDS)
             .readTimeout(8, TimeUnit.SECONDS)
