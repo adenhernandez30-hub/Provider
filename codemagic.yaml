@@ -1,0 +1,18 @@
+workflows:
+  provider-real-site-e2e:
+    name: Provider Real-Site E2E
+    instance_type: linux_x2
+    max_build_duration: 45
+
+    environment:
+      java: 17
+      vars:
+        ANILAB_REAL_E2E: "true"
+        ANILAB_E2E_QUERY: "One Piece"
+        ANILAB_E2E_TIMEOUT_MS: "180000"
+
+    scripts:
+      - name: Run batch real-site E2E
+        script: |
+          chmod +x ./gradlew
+          ./gradlew :provider:test --tests com.kakaanime.provider.ProviderRealSiteE2ETest --stacktrace
