@@ -107,7 +107,7 @@ class AniLabExtractorPipelineTest {
         override suspend fun extract(url: String, context: AniLabExtractionContext): List<AniLabStreamCandidate> {
             calls += url
             this.context = context
-            return listOf(candidate("extracted"))
+            return listOf(AniLabStreamCandidate(providerId = "source-provider", serverId = "extracted", url = "https://example.test/extracted.m3u8", type = AniLabStreamType.HLS))
         }
     }
 }
