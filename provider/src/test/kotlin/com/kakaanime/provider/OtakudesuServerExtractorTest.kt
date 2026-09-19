@@ -22,7 +22,7 @@ class OtakudesuServerExtractorTest {
 
         val limited = extractor.limitedPlaybackCandidates(candidates)
 
-        assertEquals(OtakudesuServerExtractor.MAX_PLAYBACK_CANDIDATES, limited.size)
+        assertEquals(5, limited.size)
         assertEquals(
             listOf(
                 "https://a.example/1",

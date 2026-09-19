@@ -58,9 +58,7 @@ class KuramanimeProvider(browserResolver: BrowserStreamResolver? = null) : Anime
                 posterUrl = a.selectFirst("img")?.let { it.absUrl("src").ifBlank { it.absUrl("data-src") } }?.ifBlank { null }
             )
         }.distinctBy { it.id }
-        if (cards.isNotEmpty()) return cards.take(30)
-
-        if (!parseEmbedded) return emptyList()
+        if (!parseEmbedded) return cards.take(30)
         val embedded = doc.select("[data-content]").flatMap { holder ->
             val html = holder.attr("data-content")
                 .replace("&amp;", "&")
@@ -70,7 +68,7 @@ class KuramanimeProvider(browserResolver: BrowserStreamResolver? = null) : Anime
                 .replace("&gt;", ">")
             if (html.isBlank()) emptyList() else extractSearchResults(Jsoup.parseBodyFragment(html, baseUrl), query, parseEmbedded = false)
         }
-        return embedded.distinctBy { it.id }.take(30)
+        return (cards + embedded).distinctBy { it.id }.take(30)
     }
 
     override suspend fun getAnime(animeId: String): ProviderAnime? {

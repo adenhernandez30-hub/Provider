@@ -132,9 +132,9 @@ class SamehadakuEpisodeExtractor(browserResolver: BrowserStreamResolver? = null)
             val href = media.absUrl("src").ifBlank { media.attr("src") }
             if (href.isNotBlank()) return href.trim()
         }
-        val raw = Regex("(?:src|file|source|url)\\s*[:=]\\s*[\\\"']([^\\\"']+)").find(payload)?.groupValues?.getOrNull(1)?.trim()
+        val candidateRaw = Regex("(?:src|file|source|url)\\s*[:=]\\s*[\\\"']([^\\\"']+)").find(payload)?.groupValues?.getOrNull(1)?.trim()
             ?: Regex("""https?:\\?/\\?/[^\\s\\\"'<>]+""").find(payload)?.value
-        return normalizeCandidateUrl(baseUrl, raw)
+        return normalizeCandidateUrl(baseUrl, candidateRaw)
     }
 
     private fun extractDataPageUrl(value: String): String? {
