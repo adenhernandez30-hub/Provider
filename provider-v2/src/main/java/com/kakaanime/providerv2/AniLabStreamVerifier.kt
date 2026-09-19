@@ -66,6 +66,25 @@ class AniLabStreamVerifier(
                     val sample = response.peekBody(MAX_SAMPLE_BYTES.toLong()).bytes()
                     val detected = detectType(candidate.url, contentType, sample)
 
+                    if (detected == AniLabStreamType.HLS && !isValidHlsManifest(sample)) {
+                        return@withContext AniLabVerificationResult.Failure(
+                            AniLabFailure(
+                                candidate.providerId,
+                                AniLabFailureType.MANIFEST_INVALID,
+                                "HLS response is not a valid manifest",
+                            ),
+                        )
+                    }
+                    if (detected == AniLabStreamType.DASH && !isValidDashManifest(sample)) {
+                        return@withContext AniLabVerificationResult.Failure(
+                            AniLabFailure(
+                                candidate.providerId,
+                                AniLabFailureType.MANIFEST_INVALID,
+                                "DASH response is not a valid manifest",
+                            ),
+                        )
+                    }
+
                     if (!isCompatible(candidate.type, detected)) {
                         return@withContext AniLabVerificationResult.Failure(
                             AniLabFailure(
@@ -107,6 +126,14 @@ class AniLabStreamVerifier(
                 (bytes.size >= 8 && bytes.copyOfRange(4, 8).contentEquals(byteArrayOf(0x66, 0x74, 0x79, 0x70))) -> AniLabStreamType.MP4
             else -> AniLabStreamType.UNKNOWN
         }
+    }
+
+    private fun isValidHlsManifest(bytes: ByteArray): Boolean =
+        bytes.toString(Charsets.UTF_8).trimStart().startsWith("#EXTM3U")
+
+    private fun isValidDashManifest(bytes: ByteArray): Boolean {
+        val text = bytes.toString(Charsets.UTF_8).trimStart()
+        return text.contains("<MPD", ignoreCase = true) && text.contains("</MPD>", ignoreCase = true)
     }
 
     private fun isCompatible(declared: AniLabStreamType, detected: AniLabStreamType): Boolean =
