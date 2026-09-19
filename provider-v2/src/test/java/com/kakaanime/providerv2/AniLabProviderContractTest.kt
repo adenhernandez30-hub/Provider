@@ -286,6 +286,52 @@ class AniLabProviderContractTest {
     }
 
     @Test
+    fun playbackFailure_isAttributedToCurrentProvider() = runBlocking {
+        val server = MockWebServer()
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/vnd.apple.mpegurl")
+                .setBody("#EXTM3U\\n"),
+        )
+        server.start()
+        try {
+            val selectedUrl = server.url("/selected.m3u8").toString()
+            val selected = FakeProvider(
+                "selected",
+                listOf(candidate("selected", "server-a").copy(url = selectedUrl)),
+            )
+            val pipeline = AniLabVerifiedCandidatePipeline(
+                AniLabCandidatePipeline(AniLabExtractorRegistry(listOf(UrlExtractor(selectedUrl)))),
+                AniLabStreamVerifier(),
+            )
+            val probe = AniLabPlaybackProbe {
+                AniLabPlaybackProbeResult.Failed(
+                    AniLabFailure("wrong-provider", AniLabFailureType.PLAYBACK_FAILED, "first frame not reached"),
+                )
+            }
+
+            val result = AniLabRouter(listOf(selected)).loadPlayableLinks(
+                episodeUrl = "episode",
+                mode = AniLabRoutingMode.MANUAL,
+                selectedProviderId = "selected",
+                verifiedPipeline = pipeline,
+                playbackProbe = probe,
+            )
+
+            val failure = assertIs<AniLabPlayableRouteResult.Failure>(result)
+            assertTrue(failure.failures.any {
+                it.providerId == "selected" && it.type == AniLabFailureType.PLAYBACK_FAILED
+            })
+            assertTrue(failure.failures.none {
+                it.providerId == "wrong-provider" && it.type == AniLabFailureType.PLAYBACK_FAILED
+            })
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
     fun manual_playbackFailure_doesNotFallThroughToAnotherProvider() = runBlocking {
         val server = MockWebServer()
         server.enqueue(MockResponse().setResponseCode(200).setHeader("Content-Type", "application/vnd.apple.mpegurl").setBody("#EXTM3U\\n"))
