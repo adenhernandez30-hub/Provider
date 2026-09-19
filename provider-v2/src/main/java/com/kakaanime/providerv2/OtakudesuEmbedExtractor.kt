@@ -29,7 +29,7 @@ class OtakudesuEmbedExtractor(
     override fun canHandle(url: String): Boolean {
         val uri = runCatching { URI(url) }.getOrNull() ?: return false
         val host = uri.host?.lowercase()?.removePrefix("www.") ?: return false
-        return host in normalizedAcceptedHosts && !isDirectMedia(url)
+        return normalizedAcceptedHosts.any { host == it || host.contains(it) } && !isDirectMedia(url)
     }
 
     override suspend fun extract(
@@ -65,7 +65,7 @@ class OtakudesuEmbedExtractor(
         if (depth < MAX_DEPTH) {
             for (embed in collectEmbeds(html, url)) {
                 val host = runCatching { URI(embed).host?.lowercase()?.removePrefix("www.") }.getOrNull()
-                if (host !in normalizedAcceptedHosts) continue
+                if (host == null || normalizedAcceptedHosts.none { host == it || host.contains(it) }) continue
 
                 resolvePage(
                     url = embed,
