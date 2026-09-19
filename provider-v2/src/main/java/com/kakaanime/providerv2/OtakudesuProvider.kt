@@ -161,7 +161,7 @@ class OtakudesuProvider(
     private data class Anchor(val url: String, val title: String)
 
     private companion object {
-        const val DEFAULT_BASE_URL = "https://otakudesu.io"
+        const val DEFAULT_BASE_URL = "https://otakudesu.blog"
         const val USER_AGENT = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36"
         val ANCHOR_REGEX = Regex(
             "<a\\b[^>]*\\bhref\\s*=\\s*[\\\"']([^\\\"']+)[\\\"'][^>]*>(.*?)</a\\s*>",
