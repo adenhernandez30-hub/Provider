@@ -1,7 +1,7 @@
 workflows:
   provider-real-site-e2e:
     name: Provider Real-Site E2E
-    instance_type: linux_x2
+    instance_type: mac_mini_m2
     max_build_duration: 45
 
     environment:
