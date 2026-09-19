@@ -86,10 +86,16 @@ class OtakudesuProvider(browserResolver: BrowserStreamResolver? = null) : AnimeP
     }
 
     override suspend fun getStreams(animeId: String, episodeNumber: Int): List<ProviderStream> {
-        val episode = getEpisodes(animeId).firstOrNull { it.number == episodeNumber } ?: return emptyList()
-        val episodeRef = episode.id.removePrefix("$id:")
         val slug = normalizeAnimeSlug(animeId)
-        val playbackRef = selectPlaybackRef(episodeRef, findWebEpisodeUrl(slug, episodeNumber))
+        // Resolve the live web episode first. Calling getEpisodes() here again
+        // would repeat several API requests and can consume the whole E2E stage timeout.
+        val webEpisodeUrl = findWebEpisodeUrl(slug, episodeNumber)
+        val episodeRef = webEpisodeUrl ?: getEpisodes(animeId)
+            .firstOrNull { it.number == episodeNumber }
+            ?.id
+            ?.removePrefix("$id:")
+            ?: return emptyList()
+        val playbackRef = selectPlaybackRef(episodeRef, webEpisodeUrl)
 
         if (playbackRef.startsWith("http", true)) {
             val siteResolved = siteStreamExtractor.extract(playbackRef, playbackRef)
