@@ -264,7 +264,9 @@ class AniLabRouter(
                                     playable = candidate
                                     break
                                 }
-                                is AniLabPlaybackProbeResult.Failed -> failures += probe.failure
+                                is AniLabPlaybackProbeResult.Failed -> failures += probe.failure.copy(
+                                    providerId = provider.id,
+                                )
                             }
                         }
 
