@@ -24,4 +24,4 @@ jobs:
           gradle-version: '8.13'
 
       - name: Build provider
-        run: gradle :provider:assembleDebug :provider-v2:assembleDebug --stacktrace
+        run: gradle :provider:assembleDebug :provider-v2:assembleDebug :provider-v2:testDebugUnitTest --stacktrace
