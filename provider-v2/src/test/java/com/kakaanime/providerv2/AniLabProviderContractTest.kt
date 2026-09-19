@@ -126,7 +126,7 @@ class AniLabProviderContractTest {
     @Test
     fun router_rethrowsCancellation() = runBlocking {
         val provider = object : FakeProvider("cancel") {
-            override suspend fun loadLinks(episodeUrl: String): List<AniLabStreamCandidate> {
+            open override suspend fun loadLinks(episodeUrl: String): List<AniLabStreamCandidate> {
                 throw kotlinx.coroutines.CancellationException("cancelled")
             }
         }
