@@ -8,7 +8,12 @@ import java.net.SocketTimeoutException
 class AniLabExtractorRegistry(
     extractors: List<AniLabExtractor>,
 ) {
-    private val extractors = extractors.toList()
+    private val extractors = extractors.toList().also { list ->
+        require(list.all { it.id.isNotBlank() }) { "Extractor ids must not be blank" }
+        require(list.map { it.id }.distinct().size == list.size) {
+            "Extractor ids must be unique"
+        }
+    }
 
     fun find(url: String): List<AniLabExtractor> =
         extractors.filter { extractor ->
