@@ -39,6 +39,7 @@ class KuramanimeProvider(browserResolver: BrowserStreamResolver? = null) : Anime
 
     internal fun extractSearchResults(doc: Document, query: String, parseEmbedded: Boolean = true): List<ProviderAnime> {
         val normalizedQuery = query.trim().lowercase()
+        val normalizedQuerySlug = normalizedQuery.replace(Regex("[^a-z0-9]+"), "-").trim('-')
         val cards = doc.select(
             "div.filter__gallery > a, article a, div.listupd .bs a, div.listupd .bsx a, " +
                 "a[href*='/anime/'], a[href*='/series/'], a[href*='/judul-anime/']"
@@ -50,7 +51,6 @@ class KuramanimeProvider(browserResolver: BrowserStreamResolver? = null) : Anime
             val normalizedTitle = title.lowercase()
             val looksLikeAnime = href.contains("/anime/", true) || href.contains("/series/", true) || href.contains("/judul-anime/", true)
             if (href.isBlank() || title.isBlank() || !looksLikeAnime) null
-            else if (normalizedQuery.isNotBlank() && !normalizedTitle.contains(normalizedQuery) && !href.lowercase().contains(normalizedQuery.replace(' ', '-'))) null
             else ProviderAnime(
                 "$id:$href",
                 title,
@@ -58,6 +58,17 @@ class KuramanimeProvider(browserResolver: BrowserStreamResolver? = null) : Anime
                 posterUrl = a.selectFirst("img")?.let { it.absUrl("src").ifBlank { it.absUrl("data-src") } }?.ifBlank { null }
             )
         }.distinctBy { it.id }
+            .sortedBy { anime ->
+                val title = anime.title.lowercase()
+                val animeId = anime.id.lowercase()
+                when {
+                    normalizedQuery.isBlank() -> 0
+                    title == normalizedQuery -> 0
+                    title.contains(normalizedQuery) -> 1
+                    normalizedQuerySlug.isNotBlank() && animeId.contains(normalizedQuerySlug) -> 2
+                    else -> 3
+                }
+            }
         if (!parseEmbedded) return cards.take(30)
         val embedded = doc.select("[data-content]").flatMap { holder ->
             val html = holder.attr("data-content")

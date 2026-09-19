@@ -17,5 +17,9 @@ class AnimeDaoProviderTest {
             "https://cdn.example/video.mp4",
             provider.normalizeCandidateUrl("https://animedao.in/episodes/one-piece-1x1174/", "https:\\/\\/cdn.example\\/video.mp4")
         )
+        assertEquals(
+            "https://animedao.in/embed/player?id=123",
+            provider.normalizeCandidateUrl("https://animedao.in/episodes/one-piece-1x1174/", "/embed/player?id=123")
+        )
     }
 }

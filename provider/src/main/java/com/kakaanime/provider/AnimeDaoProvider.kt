@@ -85,8 +85,9 @@ class AnimeDaoProvider(browserResolver: BrowserStreamResolver? = null) : AnimePr
             .removePrefix("\"")
             .removeSuffix("\"")
         val withScheme = if (clean.startsWith("//")) "https:$clean" else clean
-        if (!withScheme.startsWith("http", true)) return null
-        return runCatching { URI(baseUrl).resolve(withScheme).toString() }.getOrNull() ?: withScheme
+        if (withScheme.startsWith("javascript:", true) || withScheme.startsWith("data:", true) || withScheme.startsWith("#")) return null
+        val resolved = runCatching { URI(baseUrl).resolve(withScheme).toString() }.getOrNull() ?: withScheme
+        return resolved.takeIf { it.startsWith("http", true) }
     }
     private suspend fun getDocument(url: String): Document? = withContext(Dispatchers.IO) {
         runCatching { val request = Request.Builder().url(url).header("User-Agent", UA).header("Accept", "text/html,application/xhtml+xml").header("Referer", "$baseUrl/").build()
