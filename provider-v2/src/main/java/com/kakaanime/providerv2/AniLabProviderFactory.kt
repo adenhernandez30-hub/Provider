@@ -28,10 +28,11 @@ object AniLabProviderFactory {
     fun samehadaku(
         provider: SamehadakuProvider = SamehadakuProvider(),
         episodeExtractor: SamehadakuEpisodeExtractor = SamehadakuEpisodeExtractor(),
+        genericEmbedExtractor: AniLabGenericEmbedExtractor = AniLabGenericEmbedExtractor(),
         verifier: AniLabStreamVerifier = AniLabStreamVerifier(),
     ): AniLabProviderStack = singleProvider(
         provider = provider,
-        extractors = listOf(episodeExtractor),
+        extractors = listOf(episodeExtractor, genericEmbedExtractor),
         verifier = verifier,
     )
 
