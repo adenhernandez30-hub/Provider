@@ -1,5 +1,8 @@
 package com.kakaanime.providerv2
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
+
 /**
  * Provider-level routing only.
  *
@@ -11,6 +14,7 @@ package com.kakaanime.providerv2
  */
 class AniLabRouter(
     providers: List<AniLabProvider>,
+    private val circuitBreaker: AniLabCircuitBreaker = AniLabCircuitBreaker(),
 ) {
     private val providers = providers.toList()
     private val providersById = this.providers.associateBy { it.id }
@@ -38,9 +42,20 @@ class AniLabRouter(
         val failures = mutableListOf<AniLabFailure>()
 
         for (provider in targets) {
+            if (!circuitBreaker.allow(provider.id)) {
+                val failure = AniLabFailure(
+                    providerId = provider.id,
+                    type = AniLabFailureType.PROVIDER_UNAVAILABLE,
+                    message = "Provider circuit is open",
+                )
+                failures += failure
+                continue
+            }
+
             try {
                 val candidates = provider.loadLinks(episodeUrl)
                 if (candidates.isNotEmpty()) {
+                    circuitBreaker.recordSuccess(provider.id)
                     return AniLabRouteResult.Candidates(
                         providerId = provider.id,
                         candidates = candidates,
@@ -48,18 +63,24 @@ class AniLabRouter(
                     )
                 }
 
-                failures += AniLabFailure(
+                val failure = AniLabFailure(
                     providerId = provider.id,
                     type = AniLabFailureType.SERVER_EMPTY,
                     message = "Provider returned no stream candidates",
                 )
+                failures += failure
+                circuitBreaker.recordFailure(provider.id)
+            } catch (t: CancellationException) {
+                throw t
             } catch (t: Throwable) {
-                failures += AniLabFailure(
+                val failure = AniLabFailure(
                     providerId = provider.id,
                     type = classify(t),
                     message = t.message,
                     cause = t,
                 )
+                failures += failure
+                circuitBreaker.recordFailure(provider.id)
             }
         }
 
@@ -75,7 +96,7 @@ class AniLabRouter(
     }
 
     private fun classify(t: Throwable): AniLabFailureType =
-        if (t is kotlinx.coroutines.TimeoutCancellationException) {
+        if (t is TimeoutCancellationException) {
             AniLabFailureType.TIMEOUT
         } else {
             AniLabFailureType.PROVIDER_UNAVAILABLE
