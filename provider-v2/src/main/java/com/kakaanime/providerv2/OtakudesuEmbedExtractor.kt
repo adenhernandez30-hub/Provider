@@ -156,7 +156,7 @@ class OtakudesuEmbedExtractor(
 
     private fun decodeHtml(value: String): String =
         value.replace("&amp;", "&")
-            .replace("&quot;", """)
+            .replace("&quot;", "\"")
             .replace("&#039;", "'")
             .replace("&#39;", "'")
             .replace("&lt;", "<")
