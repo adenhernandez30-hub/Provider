@@ -28,7 +28,7 @@ class OtakudesuEmbedExtractorTest {
         server.start()
         try {
             val extractor = OtakudesuEmbedExtractor(
-                acceptedHosts = setOf(server.hostName),
+                acceptedHosts = setOf(server.url("/").host),
                 client = OkHttpClient.Builder()
                     .connectTimeout(2, TimeUnit.SECONDS)
                     .readTimeout(2, TimeUnit.SECONDS)
