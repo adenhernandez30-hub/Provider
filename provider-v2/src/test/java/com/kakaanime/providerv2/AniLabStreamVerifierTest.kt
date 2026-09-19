@@ -46,7 +46,7 @@ class AniLabStreamVerifierTest {
                 MockResponse()
                     .setResponseCode(200)
                     .setHeader("Content-Type", "application/vnd.apple.mpegurl")
-                    .setBody("#EXTM3U\n"),
+                    .setBody("#EXTM3U\n#EXT-X-VERSION:3\n"),
             )
 
             val candidate = AniLabStreamCandidate(
