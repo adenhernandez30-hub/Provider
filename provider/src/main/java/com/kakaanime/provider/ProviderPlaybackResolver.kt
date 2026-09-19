@@ -13,10 +13,10 @@ object ProviderPlaybackResolver {
         seasonTitle: String? = null,
         browserResolver: BrowserStreamResolver? = null,
     ): NormalizedStream? {
-        val candidates = findCandidates(title, seasonNumber, seasonTitle, browserResolver)
+        val engine = ProviderFactory.createEngine(browserResolver)
+        val candidates = findCandidates(engine, title, seasonNumber, seasonTitle)
         if (candidates.isEmpty()) return null
         val ordered = candidates.sortedWith(compareBy<ProviderAnime> { it.providerId.isBlank() }.thenByDescending { it.latestEpisode ?: 0 })
-        val engine = ProviderFactory.createEngine(browserResolver)
         for (candidate in ordered) {
             val stream = runCatching { engine.getBestStream(candidate.id, episodeNumber, preferredQuality, premium) }.getOrNull()
             if (stream != null && stream.url.isNotBlank()) return stream
@@ -30,10 +30,10 @@ object ProviderPlaybackResolver {
         seasonTitle: String? = null,
         browserResolver: BrowserStreamResolver? = null,
     ): List<ProviderEpisode> {
-        val candidates = findCandidates(title, seasonNumber, seasonTitle, browserResolver)
+        val engine = ProviderFactory.createEngine(browserResolver)
+        val candidates = findCandidates(engine, title, seasonNumber, seasonTitle)
         if (candidates.isEmpty()) return emptyList()
         val ordered = candidates.sortedWith(compareBy<ProviderAnime> { it.providerId.isBlank() }.thenByDescending { it.latestEpisode ?: 0 })
-        val engine = ProviderFactory.createEngine(browserResolver)
         for (candidate in ordered) {
             val episodes = runCatching { engine.getEpisodes(candidate.id) }.getOrDefault(emptyList())
                 .filter { it.number > 0 }.distinctBy { it.number }.sortedByDescending { it.number }
@@ -43,10 +43,10 @@ object ProviderPlaybackResolver {
     }
 
     private suspend fun findCandidates(
+        engine: ProviderEngine,
         title: String,
         seasonNumber: Int?,
         seasonTitle: String?,
-        browserResolver: BrowserStreamResolver?,
     ): List<ProviderAnime> {
         val normalizedTitle = title.trim()
         if (normalizedTitle.isBlank()) return emptyList()
@@ -58,7 +58,6 @@ object ProviderPlaybackResolver {
             seasonTitle?.trim()?.takeIf { it.isNotBlank() }?.let { add("$normalizedTitle $it") }
             add(normalizedTitle)
         }.distinct()
-        val engine = ProviderFactory.createEngine(browserResolver)
         for (query in queries) {
             val results = runCatching { engine.search(query) }.getOrDefault(emptyList())
             if (results.isEmpty()) continue

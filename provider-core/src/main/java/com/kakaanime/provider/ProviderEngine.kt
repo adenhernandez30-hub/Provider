@@ -16,6 +16,8 @@ class ProviderEngine(
 
     fun healthMonitor(): ProviderHealthMonitor = healthMonitor
 
+    fun providers(): List<AnimeProvider> = registry.all()
+
     suspend fun search(query: String): List<ProviderAnime> = router.search(query)
 
     suspend fun getAnime(animeId: String): ProviderAnime? = router.getAnime(animeId)

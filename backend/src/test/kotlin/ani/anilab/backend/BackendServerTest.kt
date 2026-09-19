@@ -2,6 +2,7 @@ package ani.anilab.backend
 
 import com.kakaanime.provider.AnimeProvider
 import com.kakaanime.provider.ProviderAnime
+import com.kakaanime.provider.ProviderEngine
 import com.kakaanime.provider.ProviderEpisode
 import com.kakaanime.provider.ProviderRegistry
 import com.kakaanime.provider.ProviderStream
@@ -21,7 +22,7 @@ class BackendServerTest {
         val registry = ProviderRegistry().apply {
             register(FakeProvider())
         }
-        val server = BackendServer(registry, port = port)
+        val server = BackendServer(ProviderEngine(registry), port = port)
 
         server.start()
         try {

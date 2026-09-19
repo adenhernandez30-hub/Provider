@@ -4,7 +4,6 @@ import com.kakaanime.provider.AnimeProvider
 import com.kakaanime.provider.ProviderAnime
 import com.kakaanime.provider.ProviderEngine
 import com.kakaanime.provider.ProviderEpisode
-import com.kakaanime.provider.ProviderRegistry
 import com.kakaanime.provider.ProviderStream
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
@@ -15,8 +14,7 @@ import java.nio.charset.StandardCharsets
 import java.util.concurrent.Executors
 
 class BackendServer(
-    private val registry: ProviderRegistry,
-    private val providerEngine: ProviderEngine = ProviderEngine(registry),
+    private val providerEngine: ProviderEngine,
     private val port: Int = 8080,
 ) {
     private var server: HttpServer? = null
@@ -49,7 +47,7 @@ class BackendServer(
             when {
                 path == "/" -> respond(exchange, 200, "{\"service\":\"AniLab Provider Backend\",\"status\":\"ok\"}")
                 path == "/health" -> respond(exchange, 200, healthJson())
-                path == "/providers" -> respond(exchange, 200, providersJson(registry.all()))
+                path == "/providers" -> respond(exchange, 200, providersJson(providerEngine.providers()))
                 segments.size == 2 && segments[0] == "search" ->
                     respond(exchange, 200, searchJson(providerEngine.search(segments[1])))
                 segments.size == 2 && segments[0] == "anime" ->
@@ -70,7 +68,7 @@ class BackendServer(
     }
 
     private fun healthJson(): String {
-        val snapshots = providerEngine.healthMonitor().all(registry.all().map(AnimeProvider::id))
+        val snapshots = providerEngine.healthMonitor().all(providerEngine.providers().map(AnimeProvider::id))
         val failing = snapshots.count { it.status == "FAILING" }
         val degraded = snapshots.count { it.status == "DEGRADED" }
         return "{\"status\":\"ok\",\"providers\":${snapshots.size},\"failing\":$failing,\"degraded\":$degraded,\"providerHealth\":${healthArray(snapshots)}}"
