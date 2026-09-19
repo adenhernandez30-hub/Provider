@@ -247,6 +247,81 @@ class AniLabProviderContractTest {
     }
 
     @Test
+    fun auto_playbackFailure_movesToNextProvider() = runBlocking {
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setResponseCode(200).setHeader("Content-Type", "application/vnd.apple.mpegurl").setBody("#EXTM3U\\n"))
+        server.enqueue(MockResponse().setResponseCode(200).setHeader("Content-Type", "application/vnd.apple.mpegurl").setBody("#EXTM3U\\n"))
+        server.start()
+        try {
+            val firstUrl = server.url("/first.m3u8").toString()
+            val secondUrl = server.url("/second.m3u8").toString()
+            val first = FakeProvider("first", listOf(candidate("first", "server-a").copy(url = firstUrl)))
+            val second = FakeProvider("second", listOf(candidate("second", "server-b").copy(url = secondUrl)))
+            val pipeline = AniLabVerifiedCandidatePipeline(
+                AniLabCandidatePipeline(AniLabExtractorRegistry(listOf(UrlExtractor(firstUrl, secondUrl)))),
+                AniLabStreamVerifier(),
+            )
+            val probe = AniLabPlaybackProbe { candidate ->
+                if (candidate.providerId == "first") {
+                    AniLabPlaybackProbeResult.Failed(
+                        AniLabFailure("first", AniLabFailureType.PLAYBACK_FAILED, "first frame not reached"),
+                    )
+                } else AniLabPlaybackProbeResult.Playable
+            }
+
+            val result = AniLabRouter(listOf(first, second)).loadPlayableLinks(
+                episodeUrl = "episode",
+                mode = AniLabRoutingMode.AUTO,
+                verifiedPipeline = pipeline,
+                playbackProbe = probe,
+            )
+
+            val routed = assertIs<AniLabPlayableRouteResult.Candidates>(result)
+            assertEquals("second", routed.providerId)
+            assertEquals("server-b", routed.candidate.serverId)
+            assertTrue(routed.failures.any { it.providerId == "first" && it.type == AniLabFailureType.PLAYBACK_FAILED })
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun manual_playbackFailure_doesNotFallThroughToAnotherProvider() = runBlocking {
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setResponseCode(200).setHeader("Content-Type", "application/vnd.apple.mpegurl").setBody("#EXTM3U\\n"))
+        server.start()
+        try {
+            val selectedUrl = server.url("/selected.m3u8").toString()
+            val selected = FakeProvider("selected", listOf(candidate("selected", "server-a").copy(url = selectedUrl)))
+            val other = FakeProvider("other", listOf(candidate("other", "server-b")))
+            val pipeline = AniLabVerifiedCandidatePipeline(
+                AniLabCandidatePipeline(AniLabExtractorRegistry(listOf(UrlExtractor(selectedUrl)))),
+                AniLabStreamVerifier(),
+            )
+            val probe = AniLabPlaybackProbe {
+                AniLabPlaybackProbeResult.Failed(
+                    AniLabFailure("selected", AniLabFailureType.PLAYBACK_FAILED, "first frame not reached"),
+                )
+            }
+
+            val result = AniLabRouter(listOf(selected, other)).loadPlayableLinks(
+                episodeUrl = "episode",
+                mode = AniLabRoutingMode.MANUAL,
+                selectedProviderId = "selected",
+                verifiedPipeline = pipeline,
+                playbackProbe = probe,
+            )
+
+            val failure = assertIs<AniLabPlayableRouteResult.Failure>(result)
+            assertTrue(failure.failures.any { it.providerId == "selected" && it.type == AniLabFailureType.PLAYBACK_FAILED })
+            assertEquals("episode", selected.lastEpisodeUrl)
+            assertEquals(null, other.lastEpisodeUrl)
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
     fun verifiedFailure_opensCircuitInsteadOfCountingUnverifiedCandidateAsSuccess() = runBlocking {
         val server = MockWebServer()
         server.enqueue(MockResponse().setResponseCode(403))
