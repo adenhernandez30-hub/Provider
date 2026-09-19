@@ -106,6 +106,70 @@ class AniLabStreamVerifierTest {
         }
     }
 
+
+    @Test
+    fun malformedHlsManifest_isRejected() = runBlocking {
+        server.start()
+        try {
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setHeader("Content-Type", "application/vnd.apple.mpegurl")
+                    .setBody("not-a-playlist"),
+            )
+
+            val candidate = AniLabStreamCandidate(
+                providerId = "test",
+                serverId = "bad-hls",
+                url = server.url("/stream").toString(),
+                type = AniLabStreamType.HLS,
+            )
+
+            val result = AniLabStreamVerifier(testClient()).verify(candidate)
+
+            val failure = assertIs<AniLabVerificationResult.Failure>(result)
+            assertEquals(AniLabFailureType.MANIFEST_INVALID, failure.failure.type)
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun candidateHeadersAndCookies_areSentWithoutDuplicateTransportHeaders() = runBlocking {
+        server.start()
+        try {
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setHeader("Content-Type", "application/vnd.apple.mpegurl")
+                    .setBody("#EXTM3U\n"),
+            )
+
+            val candidate = AniLabStreamCandidate(
+                providerId = "test",
+                serverId = "headers",
+                url = server.url("/stream").toString(),
+                type = AniLabStreamType.HLS,
+                referer = "https://site.test/episode",
+                headers = mapOf(
+                    "X-Test" to "yes",
+                    "Referer" to "https://wrong.test",
+                    "Cookie" to "wrong=1",
+                ),
+                cookies = mapOf("sid" to "abc"),
+            )
+
+            AniLabStreamVerifier(testClient()).verify(candidate)
+
+            val request = server.takeRequest()
+            assertEquals("yes", request.getHeader("X-Test"))
+            assertEquals("https://site.test/episode", request.getHeader("Referer"))
+            assertEquals("sid=abc", request.getHeader("Cookie"))
+        } finally {
+            server.shutdown()
+        }
+    }
+
     private fun testClient(): OkHttpClient = OkHttpClient.Builder()
         .build()
 }
