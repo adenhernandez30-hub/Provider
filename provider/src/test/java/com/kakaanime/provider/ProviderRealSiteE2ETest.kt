@@ -39,8 +39,8 @@ class ProviderRealSiteE2ETest {
                 }
             }
             reports.forEach { println("E2E_REPORT $it") }
-            assertTrue(usableStreams > 0, "NO_USABLE_STREAMS query=$query reports=${reports.joinToString(" || ")}")
+            assertTrue("NO_USABLE_STREAMS query=$query reports=${reports.joinToString(" || ")}", usableStreams > 0)
         }
-        assertTrue(result != null, "E2E_TIMEOUT query=$query timeoutMs=$timeoutMs")
+        assertTrue("E2E_TIMEOUT query=$query timeoutMs=$timeoutMs", result != null)
     }
 }
