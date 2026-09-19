@@ -12,7 +12,8 @@ package com.kakaanime.providerv2
 class AniLabRouter(
     providers: List<AniLabProvider>,
 ) {
-    private val providersById = providers.associateBy { it.id }
+    private val providers = providers.toList()
+    private val providersById = this.providers.associateBy { it.id }
 
     suspend fun loadLinks(
         episodeUrl: String,
