@@ -13,6 +13,7 @@ import java.util.concurrent.TimeUnit
 class SamehadakuEpisodeExtractor(
     acceptedHosts: Set<String> = DEFAULT_HOSTS,
     private val client: OkHttpClient = defaultClient(),
+    private val ajaxUrl: String = DEFAULT_AJAX_URL,
 ) : AniLabExtractor {
     override val id: String = "samehadaku-episode"
 
@@ -97,7 +98,7 @@ class SamehadakuEpisodeExtractor(
             .add("type", option.type)
             .build()
         val request = Request.Builder()
-            .url(AJAX_URL)
+            .url(ajaxUrl)
             .post(form)
             .header("User-Agent", context.userAgent ?: USER_AGENT)
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
@@ -153,7 +154,7 @@ class SamehadakuEpisodeExtractor(
 
     private companion object {
         const val USER_AGENT = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36"
-        const val AJAX_URL = "https://v2.samehadaku.how/wp-admin/admin-ajax.php"
+        const val DEFAULT_AJAX_URL = "https://v2.samehadaku.how/wp-admin/admin-ajax.php"
         val DEFAULT_HOSTS = setOf("v2.samehadaku.how", "samehadaku.how", "samehadaku.email")
         val PLAYER_OPTION_TAG_REGEX = Regex(
             "<[^>]*class=[\\\"'][^\\\"']*east_player_option[^\\\"']*[\\\"'][^>]*>",
