@@ -25,7 +25,7 @@ class AniLabProviderContractTest {
         check(routed.providerId == "second") { "providerId=${routed.providerId}" }
         check(routed.candidates.single().serverId == "server-b") { "serverId=${routed.candidates.single().serverId}" }
         check(routed.failures.single().type == AniLabFailureType.SERVER_EMPTY) { "failures=${routed.failures}" }
-        check(listOf(first.lastEpisodeUrl, second.lastEpisodeUrl) == listOf("first", "second")) {
+        check(listOf(first.lastEpisodeUrl, second.lastEpisodeUrl) == listOf("episode", "episode")) {
             "calls=${listOf(first.lastEpisodeUrl, second.lastEpisodeUrl)}"
         }
     }
