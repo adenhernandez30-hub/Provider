@@ -1,6 +1,8 @@
 package com.kakaanime.providerv2
 
 import kotlinx.coroutines.runBlocking
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -161,6 +163,104 @@ class AniLabProviderContractTest {
         assertTrue(rethrown)
     }
 
+    @Test
+    fun auto_verifiedRouting_skipsProviderWhoseCandidateFailsVerification() = runBlocking {
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setResponseCode(403))
+        server.enqueue(MockResponse()
+            .setResponseCode(200)
+            .setHeader("Content-Type", "application/vnd.apple.mpegurl")
+            .setBody("#EXTM3U\\n"))
+        server.start()
+
+        try {
+            val badUrl = server.url("/bad.m3u8").toString()
+            val goodUrl = server.url("/good.m3u8").toString()
+            val broken = FakeProvider("broken", listOf(candidate("broken", "bad").copy(url = badUrl)))
+            val healthy = FakeProvider("healthy", listOf(candidate("healthy", "good").copy(url = goodUrl)))
+            val verified = AniLabVerifiedCandidatePipeline(
+                AniLabCandidatePipeline(AniLabExtractorRegistry(listOf(UrlExtractor(badUrl, goodUrl)))),
+                AniLabStreamVerifier(),
+            )
+
+            val result = AniLabRouter(listOf(broken, healthy)).loadVerifiedLinks(
+                episodeUrl = "episode",
+                mode = AniLabRoutingMode.AUTO,
+                verifiedPipeline = verified,
+            )
+
+            val routed = assertIs<AniLabVerifiedRouteResult.Candidates>(result)
+            assertEquals("healthy", routed.providerId)
+            assertEquals("good", routed.candidates.single().serverId)
+            assertTrue(routed.failures.any { it.type == AniLabFailureType.HTTP_BLOCKED })
+            assertEquals("episode", broken.lastEpisodeUrl)
+            assertEquals("episode", healthy.lastEpisodeUrl)
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun manual_verifiedRouting_doesNotFallThroughWhenVerificationFails() = runBlocking {
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setResponseCode(403))
+        server.start()
+
+        try {
+            val badUrl = server.url("/bad.m3u8").toString()
+            val selected = FakeProvider("selected", listOf(candidate("selected", "bad").copy(url = badUrl)))
+            val other = FakeProvider("other", listOf(candidate("other", "good")))
+            val verified = AniLabVerifiedCandidatePipeline(
+                AniLabCandidatePipeline(AniLabExtractorRegistry(listOf(UrlExtractor(badUrl)))),
+                AniLabStreamVerifier(),
+            )
+
+            val result = AniLabRouter(listOf(selected, other)).loadVerifiedLinks(
+                episodeUrl = "episode",
+                mode = AniLabRoutingMode.MANUAL,
+                selectedProviderId = "selected",
+                verifiedPipeline = verified,
+            )
+
+            val failure = assertIs<AniLabVerifiedRouteResult.Failure>(result)
+            assertEquals("selected", failure.failures.last().providerId)
+            assertEquals(AniLabFailureType.HTTP_BLOCKED, failure.failures.last().type)
+            assertEquals("episode", selected.lastEpisodeUrl)
+            assertEquals(null, other.lastEpisodeUrl)
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun verifiedFailure_opensCircuitInsteadOfCountingUnverifiedCandidateAsSuccess() = runBlocking {
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setResponseCode(403))
+        server.start()
+
+        try {
+            val badUrl = server.url("/bad.m3u8").toString()
+            val breaker = AniLabCircuitBreaker(failureThreshold = 1, cooldownMillis = 60_000L)
+            val provider = FakeProvider("broken", listOf(candidate("broken", "bad").copy(url = badUrl)))
+            val verified = AniLabVerifiedCandidatePipeline(
+                AniLabCandidatePipeline(AniLabExtractorRegistry(listOf(UrlExtractor(badUrl)))),
+                AniLabStreamVerifier(),
+            )
+            val router = AniLabRouter(listOf(provider), breaker)
+
+            val first = router.loadVerifiedLinks("episode", AniLabRoutingMode.AUTO, verified)
+            assertIs<AniLabVerifiedRouteResult.Failure>(first)
+            assertEquals(1, provider.callCount)
+
+            val second = router.loadVerifiedLinks("episode", AniLabRoutingMode.AUTO, verified)
+            assertIs<AniLabVerifiedRouteResult.Failure>(second)
+            assertEquals(1, provider.callCount)
+            assertEquals(AniLabFailureType.PROVIDER_UNAVAILABLE, (second as AniLabVerifiedRouteResult.Failure).failures.last().type)
+        } finally {
+            server.shutdown()
+        }
+    }
+
     private fun candidate(providerId: String, serverId: String) = AniLabStreamCandidate(
         providerId = providerId,
         serverId = serverId,
@@ -175,12 +275,15 @@ class AniLabProviderContractTest {
     ) : AniLabProvider {
         var lastEpisodeUrl: String? = null
             private set
+        var callCount: Int = 0
+            private set
 
         override suspend fun search(query: String): List<AniLabSearchResult> = emptyList()
 
         override suspend fun load(url: String): AniLabAnime? = null
 
         override suspend fun loadLinks(episodeUrl: String): List<AniLabStreamCandidate> {
+            callCount++
             lastEpisodeUrl = episodeUrl
             failure?.let { throw it }
             return candidates
