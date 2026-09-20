@@ -18,6 +18,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.net.URI
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -47,11 +48,14 @@ class SamehadakuMedia3PlaybackTest {
         val candidate = runBlocking {
             val stack = AniLabProviderFactory.samehadaku()
             val provider = stack.providers.single { it.id == "samehadaku" }
-            val search = provider.search("One Piece")
-            assertTrue("Samehadaku search returned no results", search.isNotEmpty())
-            val detailUrl = search.firstOrNull { it.url.contains("/anime/", ignoreCase = true) }?.url
-                ?: error("Samehadaku search returned no anime detail URL")
-            val detail = provider.load(detailUrl) ?: error("Samehadaku detail could not be loaded")
+
+            // The playback E2E is pinned to a real episode URL. Resolve its
+            // series detail directly so a blocked/changed site search endpoint
+            // does not prevent the actual extraction/playback path from running.
+            val detailUrl = deriveDetailUrl(episodeUrl)
+                ?: error("Could not derive Samehadaku detail URL from episode URL: $episodeUrl")
+            val detail = provider.load(detailUrl)
+                ?: error("Samehadaku detail could not be loaded: $detailUrl")
             check(detail.episodes.isNotEmpty()) { "Samehadaku detail returned no episodes" }
 
             val episodeCandidates = provider.loadLinks(episodeUrl)
@@ -119,4 +123,14 @@ class SamehadakuMedia3PlaybackTest {
             rendered && error == null,
         )
     }
+
+    private fun deriveDetailUrl(episodeUrl: String): String? = runCatching {
+        val uri = URI(episodeUrl)
+        val slug = uri.path.trim('/')
+            .substringBeforeLast('/')
+            .substringBeforeLast("-episode-")
+            .trim('-')
+        if (slug.isBlank()) return null
+        URI(uri.scheme, uri.authority, "/anime/$slug/", null, null).toString()
+    }.getOrNull()
 }
