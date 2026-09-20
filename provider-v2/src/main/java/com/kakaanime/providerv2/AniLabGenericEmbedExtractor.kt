@@ -64,7 +64,11 @@ class AniLabGenericEmbedExtractor(
 
                 EMBED.find(html)
                     ?.groupValues
-                    ?.get(1)
+                    ?.let { match ->
+                        match.groupValues
+                            .drop(1)
+                            .firstOrNull { it.isNotBlank() }
+                    }
                     ?.let { resolve(current, htmlDecode(it)) }
                     ?.takeIf { it != current && it !in visited }
             }
@@ -124,7 +128,7 @@ class AniLabGenericEmbedExtractor(
         )
 
         private val EMBED = Regex(
-            """(?:data-src|data-embed|src)=["']([^"']+)["']""",
+            """<iframe[^>]+(?:data-src|src)=["']([^"']+)["']|(?:data-embed)=["']([^"']+)["']""",
             RegexOption.IGNORE_CASE,
         )
     }
