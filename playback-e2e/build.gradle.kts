@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.kakaanime.playbacke2e"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig {
         applicationId = "com.kakaanime.playbacke2e"
         minSdk = 24
