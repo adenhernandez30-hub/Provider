@@ -48,12 +48,17 @@ class SamehadakuProvider(
             document.title().substringBefore(" - ").trim()
         }
 
-        val episodes = document.select(
+        val episodeItems = document.select(
             "div.lstepsiode.listeps ul li, " +
                 "div.listeps ul li, " +
                 "div.episodelist ul li, " +
                 "div.listing-chapters_wrap ul li",
-        ).mapNotNull { item ->
+        ).toMutableList()
+        if (episodeItems.isEmpty()) {
+            episodeItems += document.select("a[href*=/episode/], a[href*=episode]").map { it.parent() ?: it }
+        }
+
+        val episodes = episodeItems.mapNotNull { item ->
             val anchor = item.selectFirst("span.lchx > a, a[href]") ?: return@mapNotNull null
             val href = anchor.absUrl("href").ifBlank { anchor.attr("href") }.trim()
             if (href.isBlank()) return@mapNotNull null
