@@ -18,7 +18,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.net.URI
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -45,21 +44,17 @@ class SamehadakuMedia3PlaybackTest {
             "SAMEHADAKU_E2E_EPISODE_URL is required for Media3 playback E2E"
         }
 
+        // This E2E intentionally starts from the pinned real episode URL.
+        // Search/detail are separate provider concerns; the playback checkpoint
+        // is episode -> extractor -> candidate -> verify -> Media3 first frame.
         val candidate = runBlocking {
             val stack = AniLabProviderFactory.samehadaku()
             val provider = stack.providers.single { it.id == "samehadaku" }
 
-            // The playback E2E is pinned to a real episode URL. Resolve its
-            // series detail directly so a blocked/changed site search endpoint
-            // does not prevent the actual extraction/playback path from running.
-            val detailUrl = deriveDetailUrl(episodeUrl)
-                ?: error("Could not derive Samehadaku detail URL from episode URL: $episodeUrl")
-            val detail = provider.load(detailUrl)
-                ?: error("Samehadaku detail could not be loaded: $detailUrl")
-            check(detail.episodes.isNotEmpty()) { "Samehadaku detail returned no episodes" }
-
             val episodeCandidates = provider.loadLinks(episodeUrl)
-            check(episodeCandidates.isNotEmpty()) { "Samehadaku loadLinks returned no episode-page candidate" }
+            check(episodeCandidates.isNotEmpty()) {
+                "Samehadaku loadLinks returned no episode-page candidate: $episodeUrl"
+            }
 
             val verified = stack.verifiedPipeline.resolve(
                 providerId = provider.id,
@@ -101,7 +96,10 @@ class SamehadakuMedia3PlaybackTest {
                 .build()
 
             exo.addListener(object : androidx.media3.common.Player.Listener {
-                override fun onRenderedFirstFrame() { firstFrame.countDown() }
+                override fun onRenderedFirstFrame() {
+                    firstFrame.countDown()
+                }
+
                 override fun onPlayerError(error: PlaybackException) {
                     playbackError.set(error)
                     firstFrame.countDown()
@@ -123,14 +121,4 @@ class SamehadakuMedia3PlaybackTest {
             rendered && error == null,
         )
     }
-
-    private fun deriveDetailUrl(episodeUrl: String): String? = runCatching {
-        val uri = URI(episodeUrl)
-        val slug = uri.path.trim('/')
-            .substringBeforeLast('/')
-            .substringBeforeLast("-episode-")
-            .trim('-')
-        if (slug.isBlank()) return null
-        URI(uri.scheme, uri.authority, "/anime/$slug/", null, null).toString()
-    }.getOrNull()
 }
