@@ -18,12 +18,11 @@ workflows:
       - name: Run Media3 playback on emulator.wtf
         script: |
           set -euo pipefail
-          export SAMEHADAKU_E2E_EPISODE_URL="https://v2.samehadaku.how/one-piece-episode-1178/"
           mkdir -p results
           ew-cli \
             --app playback-e2e/build/outputs/apk/debug/playback-e2e-debug.apk \
             --test playback-e2e/build/outputs/apk/androidTest/debug/playback-e2e-debug-androidTest.apk \
-            --environment-variables "SAMEHADAKU_E2E_EPISODE_URL=\${SAMEHADAKU_E2E_EPISODE_URL}" \
+            --environment-variables "SAMEHADAKU_E2E_EPISODE_URL=https://v2.samehadaku.how/one-piece-episode-1178/" \
             --outputs-dir results
         test_report: results/**/*.xml
 
