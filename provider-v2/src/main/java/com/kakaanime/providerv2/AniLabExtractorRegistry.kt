@@ -4,7 +4,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import java.net.SocketTimeoutException
 
-/** Ordered extractor registry with fallback across compatible extractors. */
+/** Extractor registry that aggregates compatible candidates so later extractors can rescue failed hosts. */
 class AniLabExtractorRegistry(
     extractors: List<AniLabExtractor>,
 ) {
@@ -31,45 +31,61 @@ class AniLabExtractorRegistry(
         providerId: String = "",
     ): AniLabExtractionResult {
         val failures = mutableListOf<AniLabFailure>()
+        val resolved = linkedMapOf<String, AniLabStreamCandidate>()
+        var firstExtractorId: String? = null
 
         for (extractor in find(url)) {
             try {
                 val candidates = extractor.extract(url, context)
                 if (candidates.isNotEmpty()) {
-                    return AniLabExtractionResult.Candidates(
-                        extractorId = extractor.id,
-                        candidates = candidates.map {
-                            if (it.extractorId == null) it.copy(extractorId = extractor.id) else it
-                        },
-                        failures = failures.toList(),
+                    firstExtractorId = firstExtractorId ?: extractor.id
+                    candidates.forEach { candidate ->
+                        val normalized = if (candidate.extractorId == null) {
+                            candidate.copy(extractorId = extractor.id)
+                        } else {
+                            candidate
+                        }
+                        resolved.putIfAbsent(normalized.url, normalized)
+                    }
+                } else {
+                    failures += AniLabFailure(
+                        providerId,
+                        AniLabFailureType.EXTRACTOR_FAILED,
+                        "Extractor ${extractor.id} returned no candidates",
                     )
                 }
-                failures += AniLabFailure(
-                    providerId,
-                    AniLabFailureType.EXTRACTOR_FAILED,
-                    "Extractor ${extractor.id} returned no candidates",
-                )
             } catch (t: CancellationException) {
                 throw t
             } catch (t: Throwable) {
                 failures += AniLabFailure(
                     providerId,
-                    if (t is TimeoutCancellationException || t is SocketTimeoutException) AniLabFailureType.TIMEOUT
-                    else AniLabFailureType.EXTRACTOR_FAILED,
-                    t.message,
+                    if (t is TimeoutCancellationException || t is SocketTimeoutException) {
+                        AniLabFailureType.TIMEOUT
+                    } else {
+                        AniLabFailureType.EXTRACTOR_FAILED
+                    },
+                    "Extractor ${extractor.id} failed: ${t.message}",
                     t,
                 )
             }
         }
 
-        return AniLabExtractionResult.Failure(
-            failures.lastOrNull() ?: AniLabFailure(
-                providerId,
-                AniLabFailureType.EXTRACTOR_FAILED,
-                "No compatible extractor found for URL",
-            ),
-            failures,
-        )
+        return if (resolved.isNotEmpty()) {
+            AniLabExtractionResult.Candidates(
+                extractorId = firstExtractorId.orEmpty(),
+                candidates = resolved.values.toList(),
+                failures = failures,
+            )
+        } else {
+            AniLabExtractionResult.Failure(
+                failure = failures.lastOrNull() ?: AniLabFailure(
+                    providerId,
+                    AniLabFailureType.EXTRACTOR_FAILED,
+                    "No compatible extractor found for URL",
+                ),
+                failures = failures,
+            )
+        }
     }
 }
 
