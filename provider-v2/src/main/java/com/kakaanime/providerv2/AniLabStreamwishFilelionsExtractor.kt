@@ -53,6 +53,7 @@ class AniLabStreamwishFilelionsExtractor(
                             cookies = context.cookies,
                         )
                     }
+                    .toList()
             }
         } catch (e: CancellationException) {
             throw e
