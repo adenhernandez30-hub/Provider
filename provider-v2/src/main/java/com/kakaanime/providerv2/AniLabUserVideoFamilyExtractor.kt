@@ -53,6 +53,7 @@ class AniLabUserVideoFamilyExtractor(
                             cookies = context.cookies,
                         )
                     }
+                    .toList()
             }
         } catch (e: CancellationException) {
             throw e
