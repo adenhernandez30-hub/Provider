@@ -56,6 +56,7 @@ class AniLabBloggerExtractor(
                             cookies = context.cookies,
                         )
                     }
+                    .toList()
             }
         } catch (e: CancellationException) {
             throw e
