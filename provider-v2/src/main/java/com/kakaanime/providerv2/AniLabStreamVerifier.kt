@@ -133,7 +133,7 @@ class AniLabStreamVerifier(
 
     private fun isValidDashManifest(bytes: ByteArray): Boolean {
         val text = bytes.toString(Charsets.UTF_8).trimStart()
-        return text.contains("<MPD", ignoreCase = true) && text.contains("</MPD>", ignoreCase = true)
+        return text.contains("<MPD", ignoreCase = true)
     }
 
     private fun isCompatible(declared: AniLabStreamType, detected: AniLabStreamType): Boolean =
