@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <application android:theme="@style/AppTheme" android:label="Provider Media3 E2E" android:usesCleartextTraffic="true">
+        <activity android:name=".PlaybackTestActivity" android:exported="true" />
+    </application>
+</manifest>
