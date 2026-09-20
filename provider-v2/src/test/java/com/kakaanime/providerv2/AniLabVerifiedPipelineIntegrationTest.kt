@@ -28,12 +28,15 @@ class AniLabVerifiedPipelineIntegrationTest {
         server.enqueue(
             MockResponse()
                 .setHeader("Content-Type", "application/vnd.apple.mpegurl")
-                .setBody("#EXTM3U
-#EXT-X-VERSION:3
-#EXT-X-TARGETDURATION:6
-#EXTINF:6,
-segment.ts
-"),
+                .setBody(
+    """
+    #EXTM3U
+    #EXT-X-VERSION:3
+    #EXT-X-TARGETDURATION:6
+    #EXTINF:6,
+    segment.ts
+    """.trimIndent(),
+),
         )
 
         val mediaUrl = server.url("/master.m3u8").toString()
