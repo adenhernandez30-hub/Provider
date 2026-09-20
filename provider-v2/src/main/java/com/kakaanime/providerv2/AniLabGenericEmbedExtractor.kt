@@ -63,7 +63,6 @@ class AniLabGenericEmbedExtractor(
                 }
 
                 EMBED.find(html)
-                    ?.groupValues
                     ?.let { match ->
                         match.groupValues
                             .drop(1)
