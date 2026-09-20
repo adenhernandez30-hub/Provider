@@ -8,6 +8,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.kakaanime.providerv2.AniLabExtractionContext
 import com.kakaanime.providerv2.AniLabProviderFactory
 import com.kakaanime.providerv2.AniLabStreamType
@@ -28,7 +29,17 @@ class SamehadakuMedia3PlaybackTest {
 
     @Test
     fun real_samehadaku_stream_reaches_media3_first_frame() {
-        val episodeUrl = System.getenv("SAMEHADAKU_E2E_EPISODE_URL")?.trim().orEmpty()
+        val instrumentationUrl = runCatching {
+            InstrumentationRegistry.getArguments()
+                .getString("SAMEHADAKU_E2E_EPISODE_URL")
+                ?.trim()
+                .orEmpty()
+        }.getOrDefault("")
+
+        val episodeUrl = instrumentationUrl.ifBlank {
+            System.getenv("SAMEHADAKU_E2E_EPISODE_URL")?.trim().orEmpty()
+        }
+
         check(episodeUrl.isNotBlank()) {
             "SAMEHADAKU_E2E_EPISODE_URL is required for Media3 playback E2E"
         }
