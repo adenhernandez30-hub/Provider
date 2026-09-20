@@ -1,20 +1,29 @@
 workflows:
-  provider-samehadaku-e2e:
-    name: Provider v2 - Samehadaku Real-Site E2E
+  provider-samehadaku-media3-e2e:
+    name: Provider v2 - Samehadaku + Media3 Playback E2E
     instance_type: mac_mini_m2
-    max_build_duration: 30
+    max_build_duration: 45
 
     environment:
       java: 17
+      groups:
+        - emulatorwtf
 
     scripts:
-      - name: Run Samehadaku real-site E2E
+      - name: Build Provider playback test APKs
+        script: |
+          set -euo pipefail
+          ./gradlew :playback-e2e:assembleDebug :playback-e2e:assembleDebugAndroidTest --stacktrace --no-daemon
+
+      - name: Run Media3 playback on emulator.wtf
         script: |
           set -euo pipefail
           export SAMEHADAKU_E2E_EPISODE_URL="https://v2.samehadaku.how/one-piece-episode-1178/"
-          ./gradlew :provider-v2:testDebugUnitTest             --tests '*SamehadakuRealSiteE2ETest'             --stacktrace             --no-daemon
-        test_report: provider-v2/build/test-results/testDebugUnitTest/**/*.xml
+          mkdir -p results
+          ew-cli             --app playback-e2e/build/outputs/apk/debug/playback-e2e-debug.apk             --test playback-e2e/build/outputs/apk/androidTest/debug/playback-e2e-debug-androidTest.apk             --outputs-dir results
+        test_report: results/**/*.xml
 
     artifacts:
-      - provider-v2/build/reports/tests/testDebugUnitTest/**
-      - provider-v2/build/test-results/testDebugUnitTest/**/*.xml
+      - results/**
+      - playback-e2e/build/outputs/apk/debug/*.apk
+      - playback-e2e/build/outputs/apk/androidTest/debug/*.apk
