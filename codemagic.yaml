@@ -20,7 +20,11 @@ workflows:
           set -euo pipefail
           export SAMEHADAKU_E2E_EPISODE_URL="https://v2.samehadaku.how/one-piece-episode-1178/"
           mkdir -p results
-          ew-cli             --app playback-e2e/build/outputs/apk/debug/playback-e2e-debug.apk             --test playback-e2e/build/outputs/apk/androidTest/debug/playback-e2e-debug-androidTest.apk             --outputs-dir results
+          ew-cli \
+            --app playback-e2e/build/outputs/apk/debug/playback-e2e-debug.apk \
+            --test playback-e2e/build/outputs/apk/androidTest/debug/playback-e2e-debug-androidTest.apk \
+            --environment-variables "SAMEHADAKU_E2E_EPISODE_URL=\${SAMEHADAKU_E2E_EPISODE_URL}" \
+            --outputs-dir results
         test_report: results/**/*.xml
 
     artifacts:
