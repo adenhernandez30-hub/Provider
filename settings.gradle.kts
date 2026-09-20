@@ -20,3 +20,4 @@ rootProject.name = "KakaAnimeProvider"
 include(":provider-core")
 include(":provider")
 include(":provider-v2")
+include(":playback-e2e")
