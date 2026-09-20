@@ -29,6 +29,7 @@ class SamehadakuEpisodeExtractor(
         withContext(Dispatchers.IO) {
             val html = get(url, context) ?: return@withContext emptyList()
             val results = linkedMapOf<String, AniLabStreamCandidate>()
+
             collectDirect(html, url, "inline").forEach { results.putIfAbsent(it.url, it) }
             collectEmbeds(html, url, "player").forEach { results.putIfAbsent(it.url, it) }
             collectAjaxPlayers(html, url, context).forEach { results.putIfAbsent(it.url, it) }
@@ -43,7 +44,11 @@ class SamehadakuEpisodeExtractor(
             results.values.toList()
         }
 
-    private fun collectDirect(html: String, base: String, server: String): List<AniLabStreamCandidate> =
+    private fun collectDirect(
+        html: String,
+        base: String,
+        server: String,
+    ): List<AniLabStreamCandidate> =
         DIRECT_REGEX.findAll(html).mapNotNull { m ->
             val media = resolve(base, m.value) ?: return@mapNotNull null
             val type = mediaType(media)
@@ -51,7 +56,11 @@ class SamehadakuEpisodeExtractor(
             AniLabStreamCandidate("samehadaku", server, media, type, referer = base)
         }.distinctBy { it.url }.toList()
 
-    private fun collectEmbeds(html: String, base: String, server: String): List<AniLabStreamCandidate> =
+    private fun collectEmbeds(
+        html: String,
+        base: String,
+        server: String,
+    ): List<AniLabStreamCandidate> =
         EMBED_REGEX.findAll(html).mapNotNull { m ->
             val embed = resolve(base, decodeHtml(m.groupValues[1])) ?: return@mapNotNull null
             AniLabStreamCandidate("samehadaku", server, embed, referer = base)
@@ -62,16 +71,22 @@ class SamehadakuEpisodeExtractor(
         pageUrl: String,
         context: AniLabExtractionContext,
     ): List<AniLabStreamCandidate> {
-        val options = PLAYER_OPTION_TAG_REGEX.findAll(html).mapNotNull { match ->
-            val tag = match.value
+        val tags = buildList {
+            PLAYER_OPTION_TAG_REGEX.findAll(html).forEach { add(it.value) }
+            SERVER_TAG_REGEX.findAll(html).forEach { add(it.value) }
+        }
+
+        val options = tags.mapNotNull { tag ->
             val nume = attr(tag, "data-nume") ?: return@mapNotNull null
             val post = attr(tag, "data-post")
                 ?: PLAYER_POST_REGEX.find(html)?.groupValues?.getOrNull(1)
                 ?: return@mapNotNull null
             val type = attr(tag, "data-type").orEmpty().ifBlank { "schtml" }
-            val label = attr(tag, "data-name").orEmpty()
+            val label = attr(tag, "data-name").orEmpty().ifBlank {
+                attr(tag, "data-server").orEmpty()
+            }
             AjaxOption(post, nume, type, label)
-        }.distinctBy { "\${it.post}|\${it.nume}|\${it.type}" }.toList()
+        }.distinctBy { "${it.post}|${it.nume}|${it.type}" }
 
         if (options.isEmpty()) return emptyList()
 
@@ -97,6 +112,7 @@ class SamehadakuEpisodeExtractor(
             .add("nume", option.nume)
             .add("type", option.type)
             .build()
+
         val request = Request.Builder()
             .url(ajaxUrl)
             .post(form)
@@ -104,7 +120,10 @@ class SamehadakuEpisodeExtractor(
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
             .header("Accept-Language", "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7")
             .header("Referer", referer)
+            .header("Origin", "https://v2.samehadaku.how")
+            .header("X-Requested-With", "XMLHttpRequest")
             .build()
+
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) null else response.body?.string()
         }
@@ -134,7 +153,7 @@ class SamehadakuEpisodeExtractor(
         ATTR_REGEX(name).find(tag)?.groupValues?.getOrNull(1)?.let(::decodeHtml)
 
     private fun resolve(base: String, value: String): String? =
-        runCatching { URI(base).resolve(value).toString() }.getOrNull()
+        runCatching { URI(base).resolve(value) }.getOrNull()?.toString()
 
     private fun mediaType(url: String): AniLabStreamType {
         val path = url.substringBefore('?').substringBefore('#').lowercase()
@@ -148,34 +167,64 @@ class SamehadakuEpisodeExtractor(
     }
 
     private fun decodeHtml(value: String): String =
-        value.replace("&amp;", "&").replace("&quot;", "\"").replace("&#039;", "'").replace("&#39;", "'")
+        value.replace("&amp;", "&")
+            .replace("&quot;", """)
+            .replace("&#039;", "'")
+            .replace("&#39;", "'")
 
-    private data class AjaxOption(val post: String, val nume: String, val type: String, val label: String)
+    private data class AjaxOption(
+        val post: String,
+        val nume: String,
+        val type: String,
+        val label: String,
+    )
 
     private companion object {
-        const val USER_AGENT = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36"
-        const val DEFAULT_AJAX_URL = "https://v2.samehadaku.how/wp-admin/admin-ajax.php"
-        val DEFAULT_HOSTS = setOf("v2.samehadaku.how", "samehadaku.how", "samehadaku.email")
+        const val USER_AGENT =
+            "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 " +
+                "(KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36"
+        const val DEFAULT_AJAX_URL =
+            "https://v2.samehadaku.how/wp-admin/admin-ajax.php"
+
+        val DEFAULT_HOSTS = setOf(
+            "v2.samehadaku.how",
+            "samehadaku.how",
+            "samehadaku.email",
+        )
+
         val PLAYER_OPTION_TAG_REGEX = Regex(
             "<[^>]*class=[\\\"'][^\\\"']*east_player_option[^\\\"']*[\\\"'][^>]*>",
             RegexOption.IGNORE_CASE,
         )
+
+        val SERVER_TAG_REGEX = Regex(
+            "<[^>]*data-post=[\\\"'][^\\\"']+[\\\"'][^>]*" +
+                "data-nume=[\\\"'][^\\\"']+[\\\"'][^>]*" +
+                "data-type=[\\\"'][^\\\"']+[\\\"'][^>]*>",
+            RegexOption.IGNORE_CASE,
+        )
+
         val PLAYER_POST_REGEX = Regex(
             "data-post\\s*=\\s*[\\\"']([^\\\"']+)[\\\"']",
             RegexOption.IGNORE_CASE,
         )
+
         val EMBED_REGEX = Regex(
             "<(?:iframe|embed)[^>]+(?:src|data-src)\\s*=\\s*[\\\"']([^\\\"']+)[\\\"']",
             RegexOption.IGNORE_CASE,
         )
+
         val DIRECT_REGEX = Regex(
-            "https?://[^\\s\\\"'<>]+\\.(?:m3u8|mpd|mp4|webm)(?:\\?[^\\s\\\"'<>]*)?",
+            "https?://[^\\s\\\"'<>]+\\.(?:m3u8|mpd|mp4|webm)" +
+                "(?:\\?[^\\s\\\"'<>]*)?",
             RegexOption.IGNORE_CASE,
         )
+
         fun ATTR_REGEX(name: String): Regex = Regex(
             "$name\\s*=\\s*[\\\"']([^\\\"']+)[\\\"']",
             RegexOption.IGNORE_CASE,
         )
+
         fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
             .followRedirects(true)
             .followSslRedirects(true)
